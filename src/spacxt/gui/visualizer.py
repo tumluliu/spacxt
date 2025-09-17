@@ -17,6 +17,8 @@ import networkx as nx
 
 from ..core.graph_store import SceneGraph, Node, Relation, GraphPatch
 from ..core.orchestrator import Bus, make_agents, tick
+from ..nlp.llm_parser import LLMCommandParser
+from ..nlp.scene_modifier import SceneModifier
 
 
 class SceneVisualizer:
@@ -37,6 +39,10 @@ class SceneVisualizer:
         # Graph layout cache for stable visualization
         self.graph_layout_cache = {}
         self.last_graph_signature = None
+
+        # Natural language processing
+        self.command_parser = LLMCommandParser()
+        self.scene_modifier = SceneModifier(scene_graph, bus, agents)
 
         # Create UI components
         self._create_widgets()
@@ -84,6 +90,26 @@ class SceneVisualizer:
         self.move_btn = ttk.Button(controls_frame, text="Move Chair",
                                   command=self._move_chair)
         self.move_btn.pack(fill=tk.X, pady=2)
+
+        # Natural Language Command Input
+        command_frame = ttk.LabelFrame(right_frame, text="Natural Language Commands", padding=5)
+        command_frame.pack(fill=tk.X, pady=(5, 5))
+
+        # Command input field
+        ttk.Label(command_frame, text="Enter command:").pack(anchor=tk.W)
+        self.command_entry = ttk.Entry(command_frame, font=("Consolas", 10))
+        self.command_entry.pack(fill=tk.X, pady=(2, 5))
+        self.command_entry.bind('<Return>', self._execute_command)
+
+        # Execute button
+        self.execute_btn = ttk.Button(command_frame, text="Execute Command",
+                                     command=self._execute_command)
+        self.execute_btn.pack(fill=tk.X, pady=2)
+
+        # Examples label
+        examples_text = "Examples:\\n• put a coffee cup on the table\\n• add a book near the chair\\n• move the chair to the stove"
+        ttk.Label(command_frame, text=examples_text, font=("Consolas", 8),
+                 foreground="gray").pack(anchor=tk.W, pady=(5, 0))
 
         # Relations panel
         relations_frame = ttk.LabelFrame(right_frame, text="Spatial Relations", padding=5)
@@ -210,9 +236,12 @@ class SceneVisualizer:
 
         # Color mapping for object types
         colors = {
-            'table': 'brown',
-            'chair': 'orange',
-            'stove': 'red'
+            'table': 'brown', 'chair': 'orange', 'stove': 'red',
+            'cup': 'lightblue', 'glass': 'lightcyan', 'plate': 'lightgray',
+            'bowl': 'wheat', 'book': 'darkgreen', 'laptop': 'darkgray',
+            'phone': 'black', 'lamp': 'gold', 'vase': 'purple',
+            'candle': 'lightyellow', 'fruit': 'red', 'bottle': 'blue',
+            'pen': 'darkblue', 'paper': 'white'
         }
 
         # Draw objects
@@ -319,9 +348,12 @@ class SceneVisualizer:
 
         # Color mapping for object types
         node_colors = {
-            'table': 'brown',
-            'chair': 'orange',
-            'stove': 'red'
+            'table': 'brown', 'chair': 'orange', 'stove': 'red',
+            'cup': 'lightblue', 'glass': 'lightcyan', 'plate': 'lightgray',
+            'bowl': 'wheat', 'book': 'darkgreen', 'laptop': 'darkgray',
+            'phone': 'black', 'lamp': 'gold', 'vase': 'purple',
+            'candle': 'lightyellow', 'fruit': 'red', 'bottle': 'blue',
+            'pen': 'darkblue', 'paper': 'white'
         }
 
         # Draw nodes
@@ -483,6 +515,52 @@ class SceneVisualizer:
 
         except Exception as e:
             self._log_activity(f"❌ Reset error: {str(e)}")
+
+    def _execute_command(self, event=None):
+        """Execute a natural language command."""
+        try:
+            # Get command text
+            command_text = self.command_entry.get().strip()
+            if not command_text:
+                return
+
+            self._log_activity(f"💬 Command: '{command_text}'")
+
+            # Build scene context for LLM
+            scene_context = {"objects": self.graph.nodes}
+
+            # Parse command
+            parsed_command = self.command_parser.parse(command_text, scene_context)
+            if not parsed_command:
+                self._log_activity("❌ Could not understand command")
+                return
+
+            self._log_activity(f"🧠 Parsed: {parsed_command.action} {parsed_command.object_type}")
+
+            # Execute command
+            success, message = self.scene_modifier.execute_command(parsed_command)
+
+            if success:
+                self._log_activity(f"✅ {message}")
+
+                # Update displays to show changes
+                self._update_displays()
+
+                # Clear command input
+                self.command_entry.delete(0, tk.END)
+
+                # Run a few ticks to let agents discover new relationships
+                for _ in range(3):
+                    tick(self.graph, self.bus, self.scene_modifier.agents)
+
+                # Update displays again to show discovered relationships
+                self._update_displays()
+
+            else:
+                self._log_activity(f"❌ {message}")
+
+        except Exception as e:
+            self._log_activity(f"❌ Command error: {str(e)}")
 
     def _update_displays(self):
         """Update all display components."""
