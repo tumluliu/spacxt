@@ -64,9 +64,9 @@ class SceneGraph:
             )
             self.nodes[n.id] = n
 
-        # Apply physics to loaded objects
+        # Apply physics to loaded objects (force ground alignment for bootstrap)
         if self.auto_physics:
-            self._apply_physics_to_all_nodes()
+            self._apply_bootstrap_physics()
 
         for rel in data["scene"]["relations"]:
             key = (rel["r"], rel["a"], rel["b"])
@@ -173,6 +173,7 @@ class SceneGraph:
         for node_id, node in self.nodes.items():
             # Apply physics validation (allows stacking)
             size = physics.ensure_minimum_size(node.bbox['xyz'])
+            old_pos = node.pos
             corrected_pos = physics.validate_object_position(node.pos, size, allow_stacking=True)
 
             # Update node position if corrected
@@ -199,6 +200,26 @@ class SceneGraph:
 
         # Update node position if corrected
         if corrected_pos != node.pos:
+            self.nodes[node_id] = Node(
+                id=node.id, cls=node.cls, pos=corrected_pos, ori=node.ori,
+                bbox=node.bbox, aff=node.aff, lom=node.lom,
+                conf=node.conf, state=node.state, meta=node.meta
+            )
+
+    def _apply_bootstrap_physics(self):
+        """Apply aggressive physics validation during bootstrap loading."""
+        physics = self._get_physics_utils()
+        if not physics:
+            return
+
+        for node_id, node in self.nodes.items():
+            # Force ground alignment for bootstrap objects (no stacking assumed)
+            size = physics.ensure_minimum_size(node.bbox['xyz'])
+            old_pos = node.pos
+            # Use align_to_ground for bootstrap (forces ground level)
+            corrected_pos = physics.align_to_ground(node.pos, size)
+
+            # Update node position
             self.nodes[node_id] = Node(
                 id=node.id, cls=node.cls, pos=corrected_pos, ori=node.ori,
                 bbox=node.bbox, aff=node.aff, lom=node.lom,

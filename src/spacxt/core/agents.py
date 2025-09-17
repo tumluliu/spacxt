@@ -25,12 +25,13 @@ class Agent:
         for nb in neighbors:
             rel = relate_near(me.__dict__, nb.__dict__)
 
-            if rel["r"] == "near":
+            # Send proposals for all detected relations (not just "near")
+            if rel["conf"] >= 0.6:  # Only send relations with reasonable confidence
                 msg = A2AMessage(
                     type="RELATION_PROPOSE",
                     sender=self.id,
                     receiver=nb.id,
-                    payload={"relation": rel, "basis":"topo.relate_near"}
+                    payload={"relation": rel, "basis":"topo.detect_spatial_relation"}
                 )
                 self.send(msg)
                 msgs.append(msg)

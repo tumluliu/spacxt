@@ -111,23 +111,16 @@ class SceneVisualizer:
                                         command=self._reset_view, width=8)
         self.reset_view_btn.pack(side=tk.LEFT, padx=2)
 
-        # Physics validation button
+        # Physics status (no manual buttons needed)
         physics_frame = ttk.Frame(view_frame)
         physics_frame.pack(fill=tk.X, pady=(2, 0))
 
-        self.validate_physics_btn = ttk.Button(physics_frame, text="Smart Fix",
-                                              command=self._validate_physics, width=10)
-        self.validate_physics_btn.pack(side=tk.LEFT, padx=1)
-
-        self.force_ground_btn = ttk.Button(physics_frame, text="Force Ground",
-                                          command=self._force_ground, width=12)
-        self.force_ground_btn.pack(side=tk.LEFT, padx=1)
+        ttk.Label(physics_frame, text="🌍 Automatic Physics: Always Active",
+                 font=("Consolas", 9), foreground="green").pack()
 
         # View info
         ttk.Label(view_frame, text="💡 Mouse: Left=Rotate, Right=Pan, Wheel=Zoom",
                  font=("Consolas", 8), foreground="gray").pack(pady=(2, 0))
-        ttk.Label(view_frame, text="🌍 Auto-Physics: Objects snap to ground automatically",
-                 font=("Consolas", 8), foreground="green").pack()
 
         # Natural Language Command Input
         command_frame = ttk.LabelFrame(right_frame, text="Natural Language Commands", padding=5)
@@ -515,7 +508,8 @@ class SceneVisualizer:
                 time.sleep(0.5)  # 2 ticks per second
 
             except Exception as e:
-                self.root.after(0, lambda: self._log_activity(f"❌ Error: {str(e)}"))
+                error_msg = str(e)
+                self.root.after(0, lambda: self._log_activity(f"❌ Error: {error_msg}"))
                 break
 
     def _single_step(self):
@@ -695,58 +689,6 @@ class SceneVisualizer:
         except Exception as e:
             self._log_activity(f"❌ View reset error: {str(e)}")
 
-    def _validate_physics(self):
-        """Smart physics validation that preserves stacking."""
-        try:
-            self._log_activity("🔧 Smart physics validation...")
-
-            corrections = self.scene_modifier.validate_scene_physics()
-
-            if corrections:
-                # Show before/after positions for debugging
-                for object_id, corrected_pos in corrections.items():
-                    if object_id in self.graph.nodes:
-                        old_pos = self.graph.nodes[object_id].pos
-                        self._log_activity(f"   📍 {object_id}: {old_pos[2]:.3f} → {corrected_pos[2]:.3f} (Z)")
-
-                # Apply corrections
-                patch = GraphPatch()
-                for object_id, corrected_pos in corrections.items():
-                    patch.update_nodes[object_id] = {"pos": corrected_pos}
-
-                self.graph.apply_patch(patch)
-                self._update_displays()
-
-                self._log_activity(f"✅ Smart validation fixed {len(corrections)} objects")
-
-            else:
-                self._log_activity("✅ All objects are properly positioned!")
-
-        except Exception as e:
-            self._log_activity(f"❌ Physics validation error: {str(e)}")
-            import traceback
-            traceback.print_exc()
-
-    def _force_ground(self):
-        """Force all objects to ground level (emergency use)."""
-        try:
-            self._log_activity("⚠️  Forcing ALL objects to ground level...")
-
-            corrections = self.scene_modifier.force_ground_alignment()
-
-            if corrections:
-                # Apply corrections
-                patch = GraphPatch()
-                for object_id, corrected_pos in corrections.items():
-                    patch.update_nodes[object_id] = {"pos": corrected_pos}
-
-                self.graph.apply_patch(patch)
-                self._update_displays()
-
-                self._log_activity(f"✅ Forced {len(corrections)} objects to ground")
-
-        except Exception as e:
-            self._log_activity(f"❌ Force ground error: {str(e)}")
 
     def _update_displays(self):
         """Update all display components."""
