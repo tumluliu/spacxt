@@ -122,25 +122,59 @@ class SceneVisualizer:
         ttk.Label(view_frame, text="💡 Mouse: Left=Rotate, Right=Pan, Wheel=Zoom",
                  font=("Consolas", 8), foreground="gray").pack(pady=(2, 0))
 
-        # Natural Language Command Input
-        command_frame = ttk.LabelFrame(right_frame, text="Natural Language Commands", padding=5)
-        command_frame.pack(fill=tk.X, pady=(5, 5))
+        # AI Chat Interface
+        chat_frame = ttk.LabelFrame(right_frame, text="AI Assistant", padding=5)
+        chat_frame.pack(fill=tk.X, pady=(5, 5))
+
+        # Chat history display
+        self.chat_history = scrolledtext.ScrolledText(chat_frame,
+                                                     width=40, height=8,
+                                                     font=("Consolas", 9),
+                                                     wrap=tk.WORD,
+                                                     state=tk.DISABLED)
+        self.chat_history.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+
+        # Configure chat history tags for styling
+        self.chat_history.tag_configure("user", foreground="blue", font=("Consolas", 9, "bold"))
+        self.chat_history.tag_configure("assistant", foreground="darkgreen")
+        self.chat_history.tag_configure("system", foreground="gray", font=("Consolas", 8, "italic"))
+        self.chat_history.tag_configure("error", foreground="red")
+        self.chat_history.tag_configure("success", foreground="green")
+
+        # Input area
+        input_frame = ttk.Frame(chat_frame)
+        input_frame.pack(fill=tk.X, pady=(0, 2))
 
         # Command input field
-        ttk.Label(command_frame, text="Enter command:").pack(anchor=tk.W)
-        self.command_entry = ttk.Entry(command_frame, font=("Consolas", 10))
-        self.command_entry.pack(fill=tk.X, pady=(2, 5))
-        self.command_entry.bind('<Return>', self._execute_command)
+        self.command_entry = tk.Text(input_frame, height=2, font=("Consolas", 10), wrap=tk.WORD)
+        self.command_entry.pack(fill=tk.X, pady=(0, 5))
+        self.command_entry.bind('<Control-Return>', self._execute_command)
+        self.command_entry.bind('<Shift-Return>', self._execute_command)
 
-        # Execute button
-        self.execute_btn = ttk.Button(command_frame, text="Execute Command",
+        # Button frame
+        button_frame = ttk.Frame(input_frame)
+        button_frame.pack(fill=tk.X)
+
+        # Execute button with loading state
+        self.execute_btn = ttk.Button(button_frame, text="Send (Ctrl+Enter)",
                                      command=self._execute_command)
-        self.execute_btn.pack(fill=tk.X, pady=2)
+        self.execute_btn.pack(side=tk.LEFT, padx=(0, 5))
 
-        # Examples label
-        examples_text = "Examples:\\n• put a coffee cup on the table\\n• add a book near the chair\\n• move the chair to the stove"
-        ttk.Label(command_frame, text=examples_text, font=("Consolas", 8),
-                 foreground="gray").pack(anchor=tk.W, pady=(5, 0))
+        # Clear chat button
+        self.clear_chat_btn = ttk.Button(button_frame, text="Clear Chat",
+                                        command=self._clear_chat)
+        self.clear_chat_btn.pack(side=tk.LEFT)
+
+        # Processing indicator
+        self.processing_label = ttk.Label(button_frame, text="", font=("Consolas", 8))
+        self.processing_label.pack(side=tk.RIGHT)
+
+        # Initialize chat
+        self._add_chat_message("system", "Welcome! I can help you manipulate the 3D scene using natural language.")
+        self._add_chat_message("system", "Examples: 'put a cup on the table', 'move the chair', 'add a book'")
+
+        # Chat processing state
+        self.chat_processing = False
 
         # Relations panel
         relations_frame = ttk.LabelFrame(right_frame, text="Spatial Relations", padding=5)
@@ -191,14 +225,49 @@ class SceneVisualizer:
         self.ax_graph = self.fig_graph.add_subplot(111)
 
         # Configure graph plot
-        self.ax_graph.set_title('Spatial Relationship Network')
+        self.ax_graph.set_title('Spatial Relationship Network (Mouse: Pan/Zoom)')
         self.ax_graph.set_aspect('equal')
         self.ax_graph.axis('off')  # Hide axes for cleaner graph view
+
+        # Graph view state
+        self.graph_zoom_level = 1.0
+        self.graph_xlim = None
+        self.graph_ylim = None
 
         # Embed graph plot in tkinter
         self.canvas_graph = FigureCanvasTkAgg(self.fig_graph, self.graph_frame)
         self.canvas_graph.draw()
         self.canvas_graph.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+        # Add graph controls
+        graph_controls_frame = ttk.Frame(self.graph_frame)
+        graph_controls_frame.pack(fill=tk.X, pady=(2, 0))
+
+        # Graph control buttons
+        self.graph_zoom_in_btn = ttk.Button(graph_controls_frame, text="🔍+",
+                                           command=self._graph_zoom_in, width=4)
+        self.graph_zoom_in_btn.pack(side=tk.LEFT, padx=2)
+
+        self.graph_zoom_out_btn = ttk.Button(graph_controls_frame, text="🔍-",
+                                            command=self._graph_zoom_out, width=4)
+        self.graph_zoom_out_btn.pack(side=tk.LEFT, padx=2)
+
+        self.graph_reset_btn = ttk.Button(graph_controls_frame, text="🔄",
+                                         command=self._graph_reset_view, width=4)
+        self.graph_reset_btn.pack(side=tk.LEFT, padx=2)
+
+        self.graph_rearrange_btn = ttk.Button(graph_controls_frame, text="⚡",
+                                             command=self._graph_rearrange, width=4)
+        self.graph_rearrange_btn.pack(side=tk.LEFT, padx=2)
+
+        # Layout selector
+        ttk.Label(graph_controls_frame, text="Layout:", font=("Consolas", 8)).pack(side=tk.LEFT, padx=(10, 2))
+        self.layout_var = tk.StringVar(value="spring")
+        self.layout_combo = ttk.Combobox(graph_controls_frame, textvariable=self.layout_var,
+                                        values=["spring", "circular", "shell", "kamada_kawai"],
+                                        width=10, font=("Consolas", 8))
+        self.layout_combo.pack(side=tk.LEFT, padx=2)
+        self.layout_combo.bind('<<ComboboxSelected>>', self._on_layout_change)
 
         # Initial render
         self._update_displays()
@@ -369,19 +438,9 @@ class SceneVisualizer:
         # Only recalculate layout if graph structure changed
         if graph_signature != self.last_graph_signature:
             try:
-                # If we have a previous layout and only nodes were added (not removed),
-                # use incremental layout for better stability
-                current_nodes = set(G.nodes())
-                previous_nodes = set(self.graph_layout_cache.keys()) if self.graph_layout_cache else set()
-
-                if previous_nodes and current_nodes.issuperset(previous_nodes):
-                    # Only new nodes added - use incremental layout
-                    pos = nx.spring_layout(G, pos=self.graph_layout_cache, k=2, iterations=30, seed=42)
-                else:
-                    # Major structural change - full recalculation with better spacing
-                    pos = nx.spring_layout(G, k=3, iterations=50, seed=42)
+                pos = self._calculate_graph_layout(G)
             except:
-                # Fallback if spring layout fails
+                # Fallback if layout calculation fails
                 pos = {node: (i*0.5, (i%3)*0.5) for i, node in enumerate(G.nodes)}
 
             # Cache the new layout and signature
@@ -429,13 +488,29 @@ class SceneVisualizer:
                                   fontsize=7, color='green', zorder=3,
                                   bbox=dict(boxstyle="round,pad=0.2", facecolor='white', alpha=0.8))
 
-        # Set equal aspect and adjust limits
+        # Set equal aspect and adjust limits with zoom support
         if pos:
             x_coords = [x for x, y in pos.values()]
             y_coords = [y for x, y in pos.values()]
+
+            # Calculate base limits
             margin = 0.3
-            self.ax_graph.set_xlim(min(x_coords) - margin, max(x_coords) + margin)
-            self.ax_graph.set_ylim(min(y_coords) - margin, max(y_coords) + margin)
+            base_xlim = (min(x_coords) - margin, max(x_coords) + margin)
+            base_ylim = (min(y_coords) - margin, max(y_coords) + margin)
+
+            # Apply zoom and custom limits if set
+            if self.graph_xlim and self.graph_ylim:
+                self.ax_graph.set_xlim(self.graph_xlim)
+                self.ax_graph.set_ylim(self.graph_ylim)
+            else:
+                # Apply zoom to base limits
+                x_center = (base_xlim[0] + base_xlim[1]) / 2
+                y_center = (base_ylim[0] + base_ylim[1]) / 2
+                x_range = (base_xlim[1] - base_xlim[0]) / (2 * self.graph_zoom_level)
+                y_range = (base_ylim[1] - base_ylim[0]) / (2 * self.graph_zoom_level)
+
+                self.ax_graph.set_xlim(x_center - x_range, x_center + x_range)
+                self.ax_graph.set_ylim(y_center - y_range, y_center + y_range)
 
         self.canvas_graph.draw()
 
@@ -562,51 +637,148 @@ class SceneVisualizer:
         except Exception as e:
             self._log_activity(f"❌ Reset error: {str(e)}")
 
+    def _add_chat_message(self, sender: str, message: str):
+        """Add a message to the chat history."""
+        self.chat_history.config(state=tk.NORMAL)
+
+        # Add timestamp
+        timestamp = time.strftime("%H:%M:%S")
+
+        if sender == "user":
+            self.chat_history.insert(tk.END, f"[{timestamp}] You: ", "user")
+            self.chat_history.insert(tk.END, f"{message}\n\n")
+        elif sender == "assistant":
+            self.chat_history.insert(tk.END, f"[{timestamp}] Assistant: ", "assistant")
+            self.chat_history.insert(tk.END, f"{message}\n\n")
+        elif sender == "system":
+            self.chat_history.insert(tk.END, f"[{timestamp}] ", "system")
+            self.chat_history.insert(tk.END, f"{message}\n", "system")
+        elif sender == "error":
+            self.chat_history.insert(tk.END, f"[{timestamp}] Error: ", "error")
+            self.chat_history.insert(tk.END, f"{message}\n\n", "error")
+        elif sender == "success":
+            self.chat_history.insert(tk.END, f"[{timestamp}] ✅ ", "success")
+            self.chat_history.insert(tk.END, f"{message}\n\n", "success")
+
+        self.chat_history.config(state=tk.DISABLED)
+        self.chat_history.see(tk.END)
+
+        # Keep chat history manageable (last 100 messages)
+        lines = self.chat_history.get(1.0, tk.END).split('\n')
+        if len(lines) > 200:  # Roughly 100 message pairs
+            self.chat_history.config(state=tk.NORMAL)
+            # Remove first 50 lines
+            for _ in range(50):
+                self.chat_history.delete(1.0, "2.0")
+            self.chat_history.config(state=tk.DISABLED)
+
+    def _clear_chat(self):
+        """Clear the chat history."""
+        self.chat_history.config(state=tk.NORMAL)
+        self.chat_history.delete(1.0, tk.END)
+        self.chat_history.config(state=tk.DISABLED)
+        self._add_chat_message("system", "Chat cleared. Ready for new commands!")
+
+    def _set_processing_state(self, processing: bool):
+        """Update the processing state and UI indicators."""
+        self.chat_processing = processing
+
+        if processing:
+            self.execute_btn.config(text="Processing...", state="disabled")
+            self.processing_label.config(text="🤔 Thinking...", foreground="orange")
+        else:
+            self.execute_btn.config(text="Send (Ctrl+Enter)", state="normal")
+            self.processing_label.config(text="", foreground="black")
+
     def _execute_command(self, event=None):
-        """Execute a natural language command."""
+        """Execute a natural language command in a separate thread."""
+        if self.chat_processing:
+            return
+
+        # Get command text
+        command_text = self.command_entry.get(1.0, tk.END).strip()
+        if not command_text:
+            return
+
+        # Add user message to chat
+        self._add_chat_message("user", command_text)
+
+        # Clear input field
+        self.command_entry.delete(1.0, tk.END)
+
+        # Set processing state
+        self._set_processing_state(True)
+
+        # Execute command in background thread
+        command_thread = threading.Thread(target=self._process_command, args=(command_text,))
+        command_thread.daemon = True
+        command_thread.start()
+
+    def _process_command(self, command_text: str):
+        """Process the command in a background thread."""
         try:
-            # Get command text
-            command_text = self.command_entry.get().strip()
-            if not command_text:
-                return
-
-            self._log_activity(f"💬 Command: '{command_text}'")
-
             # Build scene context for LLM
             scene_context = {"objects": self.graph.nodes}
 
-            # Parse command
+            # Parse command (this is where LLM processing happens)
             parsed_command = self.command_parser.parse(command_text, scene_context)
-            if not parsed_command:
-                self._log_activity("❌ Could not understand command")
-                return
 
-            self._log_activity(f"🧠 Parsed: {parsed_command.action} {parsed_command.object_type}")
+            if not parsed_command:
+                self.root.after(0, lambda: self._handle_command_result(False, "I couldn't understand that command. Could you try rephrasing it?"))
+                return
 
             # Execute command
             success, message = self.scene_modifier.execute_command(parsed_command)
 
             if success:
-                self._log_activity(f"✅ {message}")
-
-                # Update displays to show changes
-                self._update_displays()
-
-                # Clear command input
-                self.command_entry.delete(0, tk.END)
-
-                # Run a few ticks to let agents discover new relationships
-                for _ in range(3):
-                    tick(self.graph, self.bus, self.scene_modifier.agents)
-
-                # Update displays again to show discovered relationships
-                self._update_displays()
-
+                # Schedule UI updates in main thread
+                self.root.after(0, lambda: self._handle_command_success(message, parsed_command))
             else:
-                self._log_activity(f"❌ {message}")
+                self.root.after(0, lambda: self._handle_command_result(False, message))
 
         except Exception as e:
-            self._log_activity(f"❌ Command error: {str(e)}")
+            error_msg = str(e)
+            self.root.after(0, lambda: self._handle_command_result(False, f"An error occurred: {error_msg}"))
+
+    def _handle_command_success(self, message: str, parsed_command):
+        """Handle successful command execution in main thread."""
+        try:
+            # Add success message to chat
+            assistant_response = f"Done! {message}"
+            if hasattr(parsed_command, 'object_type') and hasattr(parsed_command, 'action'):
+                assistant_response += f" (Action: {parsed_command.action} {parsed_command.object_type})"
+
+            self._add_chat_message("assistant", assistant_response)
+
+            # Update displays
+            self._update_displays()
+
+            # Log activity
+            self._log_activity(f"✅ {message}")
+
+            # Run a few ticks to let agents discover new relationships
+            for _ in range(3):
+                tick(self.graph, self.bus, self.scene_modifier.agents)
+
+            # Update displays again
+            self._update_displays()
+
+        except Exception as e:
+            self._add_chat_message("error", f"Error updating scene: {str(e)}")
+        finally:
+            self._set_processing_state(False)
+
+    def _handle_command_result(self, success: bool, message: str):
+        """Handle command result in main thread."""
+        try:
+            if success:
+                self._add_chat_message("success", message)
+                self._log_activity(f"✅ {message}")
+            else:
+                self._add_chat_message("error", message)
+                self._log_activity(f"❌ {message}")
+        finally:
+            self._set_processing_state(False)
 
     def _zoom_in(self):
         """Zoom into the 3D view."""
@@ -688,6 +860,95 @@ class SceneVisualizer:
 
         except Exception as e:
             self._log_activity(f"❌ View reset error: {str(e)}")
+
+    def _calculate_graph_layout(self, G):
+        """Calculate graph layout based on selected algorithm."""
+        layout_type = self.layout_var.get()
+
+        if layout_type == "spring":
+            # If we have a previous layout and only nodes were added, use incremental layout
+            current_nodes = set(G.nodes())
+            previous_nodes = set(self.graph_layout_cache.keys()) if self.graph_layout_cache else set()
+
+            if previous_nodes and current_nodes.issuperset(previous_nodes):
+                # Only new nodes added - use incremental layout
+                return nx.spring_layout(G, pos=self.graph_layout_cache, k=2, iterations=30, seed=42)
+            else:
+                # Major structural change - full recalculation with better spacing
+                return nx.spring_layout(G, k=3, iterations=50, seed=42)
+
+        elif layout_type == "circular":
+            return nx.circular_layout(G)
+
+        elif layout_type == "shell":
+            return nx.shell_layout(G)
+
+        elif layout_type == "kamada_kawai":
+            if len(G.nodes) > 1:
+                return nx.kamada_kawai_layout(G)
+            else:
+                return nx.spring_layout(G, k=3, iterations=50, seed=42)
+
+        else:
+            # Default to spring layout
+            return nx.spring_layout(G, k=3, iterations=50, seed=42)
+
+    def _graph_zoom_in(self):
+        """Zoom into the graph view."""
+        try:
+            self.graph_zoom_level *= 1.5
+            self.graph_xlim = None  # Reset custom limits to use zoom
+            self.graph_ylim = None
+            self._update_graph_view()
+            self._log_activity("🔍 Graph zoomed in")
+        except Exception as e:
+            self._log_activity(f"❌ Graph zoom error: {str(e)}")
+
+    def _graph_zoom_out(self):
+        """Zoom out of the graph view."""
+        try:
+            self.graph_zoom_level /= 1.5
+            self.graph_zoom_level = max(0.1, self.graph_zoom_level)  # Minimum zoom
+            self.graph_xlim = None  # Reset custom limits to use zoom
+            self.graph_ylim = None
+            self._update_graph_view()
+            self._log_activity("🔍 Graph zoomed out")
+        except Exception as e:
+            self._log_activity(f"❌ Graph zoom error: {str(e)}")
+
+    def _graph_reset_view(self):
+        """Reset graph view to default zoom and position."""
+        try:
+            self.graph_zoom_level = 1.0
+            self.graph_xlim = None
+            self.graph_ylim = None
+            self._update_graph_view()
+            self._log_activity("🔄 Graph view reset")
+        except Exception as e:
+            self._log_activity(f"❌ Graph reset error: {str(e)}")
+
+    def _graph_rearrange(self):
+        """Force rearrangement of the graph layout."""
+        try:
+            # Clear layout cache to force recalculation
+            self.graph_layout_cache = {}
+            self.last_graph_signature = None
+            self._update_graph_view()
+            self._log_activity("⚡ Graph layout refreshed")
+        except Exception as e:
+            self._log_activity(f"❌ Graph rearrange error: {str(e)}")
+
+    def _on_layout_change(self, event=None):
+        """Handle layout algorithm change."""
+        try:
+            # Clear cache and force recalculation with new layout
+            self.graph_layout_cache = {}
+            self.last_graph_signature = None
+            self._update_graph_view()
+            layout_name = self.layout_var.get()
+            self._log_activity(f"📐 Changed to {layout_name} layout")
+        except Exception as e:
+            self._log_activity(f"❌ Layout change error: {str(e)}")
 
 
     def _update_displays(self):

@@ -158,6 +158,7 @@ class SceneModifier:
         self.agents = agents
         self.templates = ObjectTemplates.get_templates()
         self.placement_engine = PlacementEngine(scene_graph)
+        self.object_counter = {}  # Track object counts for unique IDs
 
     def execute_command(self, command: ParsedCommand) -> Tuple[bool, str]:
         """Execute a parsed command and return success status and message."""
@@ -175,83 +176,104 @@ class SceneModifier:
             return False, f"Error executing command: {str(e)}"
 
     def _add_object(self, command: ParsedCommand) -> Tuple[bool, str]:
-        """Add a new object to the scene."""
-        # Use LLM-enhanced properties if available, otherwise fall back to templates
-        if 'bbox' in command.properties and 'affordances' in command.properties:
-            # LLM provided enhanced properties
-            template = {
-                'cls': command.object_type,
-                'bbox': command.properties['bbox'],
-                'aff': command.properties.get('affordances', []),
-                'lom': 'high' if command.properties.get('fragility') == 'high' else 'medium',
-                'conf': command.properties.get('confidence', 0.9),
-                'color': command.properties.get('color', 'default'),
-                'material': command.properties.get('material', 'unknown'),
-                'weight_kg': command.properties.get('weight_kg', 1.0)
-            }
-        elif command.object_type in self.templates:
-            # Use template
-            template = self.templates[command.object_type].copy()
+        """Add new object(s) to the scene."""
+        quantity = getattr(command, 'quantity', 1)
+        added_objects = []
+
+        for i in range(quantity):
+            # Generate unique object ID for each instance
+            if quantity > 1:
+                current_count = self.object_counter.get(command.object_type, 0)
+                object_id = f"{command.object_type}_{current_count + i + 1}"
+            else:
+                object_id = command.object_id or f"{command.object_type}_1"
+
+            # Use LLM-enhanced properties if available, otherwise fall back to templates
+            if 'bbox' in command.properties and 'affordances' in command.properties:
+                # LLM provided enhanced properties
+                template = {
+                    'cls': command.object_type,
+                    'bbox': command.properties['bbox'],
+                    'aff': command.properties.get('affordances', []),
+                    'lom': 'high' if command.properties.get('fragility') == 'high' else 'medium',
+                    'conf': command.properties.get('confidence', 0.9),
+                    'color': command.properties.get('color', 'default'),
+                    'material': command.properties.get('material', 'unknown'),
+                    'weight_kg': command.properties.get('weight_kg', 1.0)
+                }
+            elif command.object_type in self.templates:
+                # Use template
+                template = self.templates[command.object_type].copy()
+            else:
+                # Create basic template for unknown objects
+                template = {
+                    'cls': command.object_type,
+                    'bbox': {'type': 'OBB', 'xyz': [0.1, 0.1, 0.1]},
+                    'aff': ['portable'],
+                    'lom': 'medium',
+                    'conf': 0.7,
+                    'color': 'gray'
+                }
+
+            # Use physics engine for proper positioning
+            object_size = template['bbox']['xyz']
+            placement_type = self._get_placement_type(command)
+
+            position = self.placement_engine.place_object(
+                object_id=object_id,
+                object_size=object_size,
+                placement_type=placement_type,
+                target_id=command.target_object,
+                randomness=0.3
+            )
+
+            # Create new node (position will be auto-corrected by SceneGraph physics)
+            node = Node(
+                id=object_id,
+                cls=template['cls'],
+                pos=position,
+                ori=(0, 0, 0, 1),  # Default orientation
+                bbox=template['bbox'],
+                aff=template.get('aff', []),
+                lom=template.get('lom', 'medium'),
+                conf=template.get('conf', 0.9),
+                state=template.get('state', {}),
+                meta={'color': template.get('color', 'default')}
+            )
+
+            # Add to scene graph
+            patch = GraphPatch()
+            patch.add_nodes[object_id] = node
+            self.graph.apply_patch(patch)
+
+            # Create agent for new object
+            agent = Agent(
+                id=object_id,
+                cls=template['cls'],
+                graph=self.graph,
+                send=self.bus.send,
+                inbox=[]
+            )
+            self.agents[object_id] = agent
+
+            # Add room relationship
+            patch = GraphPatch()
+            from ..core.graph_store import Relation
+            room_rel = Relation(r="in", a=object_id, b="kitchen", conf=1.0)
+            patch.add_relations.append(room_rel)
+            self.graph.apply_patch(patch)
+
+            added_objects.append(object_id)
+
+        # Update object counter
+        if command.object_type not in self.object_counter:
+            self.object_counter[command.object_type] = 0
+        self.object_counter[command.object_type] += quantity
+
+        if quantity == 1:
+            return True, f"Added {command.object_type} '{added_objects[0]}' to the scene"
         else:
-            # Create basic template for unknown objects
-            template = {
-                'cls': command.object_type,
-                'bbox': {'type': 'OBB', 'xyz': [0.1, 0.1, 0.1]},
-                'aff': ['portable'],
-                'lom': 'medium',
-                'conf': 0.7,
-                'color': 'gray'
-            }
-
-        # Use physics engine for proper positioning
-        object_size = template['bbox']['xyz']
-        placement_type = self._get_placement_type(command)
-
-        position = self.placement_engine.place_object(
-            object_id=command.object_id,
-            object_size=object_size,
-            placement_type=placement_type,
-            target_id=command.target_object,
-            randomness=0.3
-        )
-
-        # Create new node (position will be auto-corrected by SceneGraph physics)
-        node = Node(
-            id=command.object_id,
-            cls=template['cls'],
-            pos=position,
-            ori=(0, 0, 0, 1),  # Default orientation
-            bbox=template['bbox'],
-            aff=template.get('aff', []),
-            lom=template.get('lom', 'medium'),
-            conf=template.get('conf', 0.9),
-            state=template.get('state', {}),
-            meta={'color': template.get('color', 'default')}
-        )
-
-        # Add to scene graph
-        patch = GraphPatch()
-        patch.add_nodes[command.object_id] = node
-        self.graph.apply_patch(patch)
-
-        # Create agent for new object
-        agent = Agent(
-            id=command.object_id,
-            cls=template['cls'],
-            graph=self.graph,
-            send=self.bus.send,
-            inbox=[]
-        )
-        self.agents[command.object_id] = agent
-
-        # Add room relationship
-        patch = GraphPatch()
-        from ..core.graph_store import Relation
-        room_rel = Relation(r="in", a=command.object_id, b="kitchen", conf=1.0)
-        patch.add_relations.append(room_rel)
-        self.graph.apply_patch(patch)
-
-        return True, f"Added {command.object_type} '{command.object_id}' to the scene"
+            return True, f"Added {quantity} {command.object_type}s to the scene: {', '.join(added_objects)}"
 
     def _move_object(self, command: ParsedCommand) -> Tuple[bool, str]:
         """Move an existing object."""

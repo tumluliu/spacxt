@@ -57,6 +57,7 @@ Your task is to parse user commands into structured JSON format. Return ONLY val
   "spatial_relation": "on_top_of|near|beside|inside|above|below|null",
   "position": [x, y, z] or null,
   "properties": {{"additional": "properties"}},
+  "quantity": 1,
   "confidence": 0.0-1.0
 }}
 
@@ -75,9 +76,16 @@ For REMOVE actions:
 - Use existing object_id from scene
 - Other fields can be null
 
+QUANTITY HANDLING:
+- Extract quantity from words like "two", "three", "several", "a few", "many"
+- Numbers: "2 cups", "5 books" -> quantity: 2, 5
+- Words: "two cups", "several books", "a few plates" -> quantity: 2, 3, 3
+- Default to quantity: 1 for single objects
+
 Examples:
-- "put a coffee cup on the table" -> {{"action": "add", "object_type": "coffee_cup", "object_id": "coffee_cup_1", "target_object": "table_1", "spatial_relation": "on_top_of", "confidence": 0.95}}
-- "move the chair near the stove" -> {{"action": "move", "object_type": "chair", "object_id": "chair_12", "target_object": "stove", "spatial_relation": "near", "confidence": 0.90}}
+- "put a coffee cup on the table" -> {{"action": "add", "object_type": "coffee_cup", "object_id": "coffee_cup_1", "target_object": "table_1", "spatial_relation": "on_top_of", "quantity": 1, "confidence": 0.95}}
+- "put two cups on the table" -> {{"action": "add", "object_type": "coffee_cup", "object_id": "coffee_cup_1", "target_object": "table_1", "spatial_relation": "on_top_of", "quantity": 2, "confidence": 0.95}}
+- "move the chair near the stove" -> {{"action": "move", "object_type": "chair", "object_id": "chair_12", "target_object": "stove", "spatial_relation": "near", "quantity": 1, "confidence": 0.90}}
 
 Return ONLY the JSON, no other text."""
 

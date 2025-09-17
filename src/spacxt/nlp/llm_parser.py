@@ -20,6 +20,7 @@ class ParsedCommand:
     position: Optional[Tuple[float, float, float]] = None
     properties: Dict[str, Any] = None
     confidence: float = 0.0
+    quantity: int = 1  # Number of objects to add/modify
 
     def __post_init__(self):
         if self.properties is None:
@@ -89,7 +90,8 @@ class LLMCommandParser:
                 spatial_relation=llm_result.get("spatial_relation"),
                 position=tuple(llm_result["position"]) if llm_result.get("position") else None,
                 properties=llm_result.get("properties", {}),
-                confidence=llm_result.get("confidence", 0.8)
+                confidence=llm_result.get("confidence", 0.8),
+                quantity=llm_result.get("quantity", 1)
             )
 
             # Generate object ID if not provided and action is add
@@ -151,6 +153,9 @@ class LLMCommandParser:
                     action = 'add'
                     spatial_relation = None
 
+                # Extract quantity from rule-based parsing
+                quantity = self._extract_quantity_from_command(command)
+
                 return ParsedCommand(
                     action=action,
                     object_type=object_type,
@@ -158,7 +163,8 @@ class LLMCommandParser:
                     target_object=target_object,
                     spatial_relation=spatial_relation,
                     properties={'command': command},
-                    confidence=0.7  # Lower confidence for rule-based
+                    confidence=0.7,  # Lower confidence for rule-based
+                    quantity=quantity
                 )
 
         return None
@@ -174,6 +180,32 @@ class LLMCommandParser:
         word = re.sub(r's$', '', word)  # Remove plural
 
         return self.object_synonyms.get(word, word)
+
+    def _extract_quantity_from_command(self, command: str) -> int:
+        """Extract quantity from command text (rule-based fallback)."""
+        import re
+
+        # Number words to digits mapping
+        number_words = {
+            'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+            'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+            'a': 1, 'an': 1, 'couple': 2, 'few': 3, 'several': 3,
+            'some': 2, 'many': 5, 'multiple': 3
+        }
+
+        command_lower = command.lower()
+
+        # Look for explicit numbers first
+        number_match = re.search(r'\b(\d+)\b', command_lower)
+        if number_match:
+            return int(number_match.group(1))
+
+        # Look for number words
+        for word, value in number_words.items():
+            if re.search(rf'\b{word}\b', command_lower):
+                return value
+
+        return 1  # Default to single object
 
     def _generate_object_id(self, object_type: str) -> str:
         """Generate a unique ID for an object type."""
