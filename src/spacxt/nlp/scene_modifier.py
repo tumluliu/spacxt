@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from ..core.graph_store import SceneGraph, Node, GraphPatch
 from ..core.orchestrator import Bus
 from ..core.agents import Agent
+from ..physics.placement_engine import PlacementEngine
 from .llm_parser import ParsedCommand
 
 
@@ -156,6 +157,7 @@ class SceneModifier:
         self.bus = bus
         self.agents = agents
         self.templates = ObjectTemplates.get_templates()
+        self.placement_engine = PlacementEngine(scene_graph)
 
     def execute_command(self, command: ParsedCommand) -> Tuple[bool, str]:
         """Execute a parsed command and return success status and message."""
@@ -201,12 +203,19 @@ class SceneModifier:
                 'color': 'gray'
             }
 
-        # Determine position
-        position = self._calculate_position(command)
-        if not position:
-            return False, f"Could not determine position for {command.object_type}"
+        # Use physics engine for proper positioning
+        object_size = template['bbox']['xyz']
+        placement_type = self._get_placement_type(command)
 
-        # Create new node
+        position = self.placement_engine.place_object(
+            object_id=command.object_id,
+            object_size=object_size,
+            placement_type=placement_type,
+            target_id=command.target_object,
+            randomness=0.3
+        )
+
+        # Create new node (position will be auto-corrected by SceneGraph physics)
         node = Node(
             id=command.object_id,
             cls=template['cls'],
@@ -251,10 +260,21 @@ class SceneModifier:
         if not object_id:
             return False, f"Could not find object: {command.object_id}"
 
-        # Calculate new position
-        position = self._calculate_position(command)
-        if not position:
-            return False, f"Could not determine new position"
+        # Use physics engine for proper positioning
+        if object_id not in self.graph.nodes:
+            return False, f"Object {object_id} not found in scene"
+
+        node = self.graph.nodes[object_id]
+        object_size = node.bbox['xyz']
+        placement_type = self._get_placement_type(command)
+
+        position = self.placement_engine.place_object(
+            object_id=object_id,
+            object_size=object_size,
+            placement_type=placement_type,
+            target_id=command.target_object,
+            randomness=0.2
+        )
 
         # Update object position
         patch = GraphPatch()
@@ -289,6 +309,25 @@ class SceneModifier:
 
         return True, f"Removed {object_id} from the scene"
 
+    def _get_placement_type(self, command: ParsedCommand) -> str:
+        """Convert command spatial relation to placement type."""
+        if command.spatial_relation == 'on_top_of':
+            return 'on_top_of'
+        elif command.spatial_relation == 'near':
+            return 'near'
+        elif command.action == 'move':
+            return 'near' if command.target_object else 'ground'
+        else:
+            return 'ground'
+
+    def validate_scene_physics(self) -> Dict[str, Tuple[float, float, float]]:
+        """Validate and correct all object positions using physics engine."""
+        return self.placement_engine.validate_all_positions()
+
+    def force_ground_alignment(self) -> Dict[str, Tuple[float, float, float]]:
+        """Force ALL objects to ground (emergency use only)."""
+        return self.placement_engine.force_ground_alignment()
+
     def _calculate_position(self, command: ParsedCommand) -> Optional[Tuple[float, float, float]]:
         """Calculate position for object based on command."""
         if command.target_object:
@@ -302,27 +341,41 @@ class SceneModifier:
             target_size = target_node.bbox['xyz']
 
             if command.spatial_relation == 'on_top_of':
-                # Place on top of target
+                # Get new object size to calculate proper placement
+                new_obj_size = command.properties.get('bbox', {}).get('xyz', [0.1, 0.1, 0.1])
+                if isinstance(new_obj_size, dict) and 'xyz' in new_obj_size:
+                    new_obj_size = new_obj_size['xyz']
+
+                # Place on top of target: target center + target height/2 + new object height/2
                 return (
-                    target_pos[0] + random.uniform(-0.2, 0.2),  # Slight randomness
-                    target_pos[1] + random.uniform(-0.2, 0.2),
-                    target_pos[2] + target_size[2]/2 + 0.05  # On top with small gap
+                    target_pos[0] + random.uniform(-0.15, 0.15),  # Slight randomness but keep on table
+                    target_pos[1] + random.uniform(-0.15, 0.15),
+                    target_pos[2] + target_size[2]/2 + new_obj_size[2]/2 + 0.01  # Proper stacking
                 )
             elif command.spatial_relation == 'near':
-                # Place near target
+                # Get new object size for proper ground positioning
+                new_obj_size = command.properties.get('bbox', {}).get('xyz', [0.1, 0.1, 0.1])
+                if isinstance(new_obj_size, dict) and 'xyz' in new_obj_size:
+                    new_obj_size = new_obj_size['xyz']
+
+                # Place near target on ground
                 angle = random.uniform(0, 2 * math.pi)
-                distance = random.uniform(0.3, 0.6)
+                distance = random.uniform(0.4, 0.7)
                 return (
                     target_pos[0] + distance * math.cos(angle),
                     target_pos[1] + distance * math.sin(angle),
-                    0.05  # Small height above ground
+                    new_obj_size[2]/2  # Proper ground positioning
                 )
 
         # Default: random position in scene
+        new_obj_size = command.properties.get('bbox', {}).get('xyz', [0.1, 0.1, 0.1])
+        if isinstance(new_obj_size, dict) and 'xyz' in new_obj_size:
+            new_obj_size = new_obj_size['xyz']
+
         return (
             random.uniform(1.0, 4.0),
             random.uniform(0.5, 2.5),
-            0.05
+            new_obj_size[2]/2  # Proper ground positioning
         )
 
     def _find_object_by_name(self, name: str) -> Optional[str]:

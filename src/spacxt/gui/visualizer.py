@@ -91,6 +91,44 @@ class SceneVisualizer:
                                   command=self._move_chair)
         self.move_btn.pack(fill=tk.X, pady=2)
 
+        # 3D View Controls
+        view_frame = ttk.LabelFrame(controls_frame, text="3D View Controls", padding=3)
+        view_frame.pack(fill=tk.X, pady=(5, 2))
+
+        # Zoom controls
+        zoom_frame = ttk.Frame(view_frame)
+        zoom_frame.pack(fill=tk.X)
+
+        self.zoom_in_btn = ttk.Button(zoom_frame, text="Zoom In",
+                                     command=self._zoom_in, width=8)
+        self.zoom_in_btn.pack(side=tk.LEFT, padx=2)
+
+        self.zoom_out_btn = ttk.Button(zoom_frame, text="Zoom Out",
+                                      command=self._zoom_out, width=8)
+        self.zoom_out_btn.pack(side=tk.LEFT, padx=2)
+
+        self.reset_view_btn = ttk.Button(zoom_frame, text="Reset View",
+                                        command=self._reset_view, width=8)
+        self.reset_view_btn.pack(side=tk.LEFT, padx=2)
+
+        # Physics validation button
+        physics_frame = ttk.Frame(view_frame)
+        physics_frame.pack(fill=tk.X, pady=(2, 0))
+
+        self.validate_physics_btn = ttk.Button(physics_frame, text="Smart Fix",
+                                              command=self._validate_physics, width=10)
+        self.validate_physics_btn.pack(side=tk.LEFT, padx=1)
+
+        self.force_ground_btn = ttk.Button(physics_frame, text="Force Ground",
+                                          command=self._force_ground, width=12)
+        self.force_ground_btn.pack(side=tk.LEFT, padx=1)
+
+        # View info
+        ttk.Label(view_frame, text="💡 Mouse: Left=Rotate, Right=Pan, Wheel=Zoom",
+                 font=("Consolas", 8), foreground="gray").pack(pady=(2, 0))
+        ttk.Label(view_frame, text="🌍 Auto-Physics: Objects snap to ground automatically",
+                 font=("Consolas", 8), foreground="green").pack()
+
         # Natural Language Command Input
         command_frame = ttk.LabelFrame(right_frame, text="Natural Language Commands", padding=5)
         command_frame.pack(fill=tk.X, pady=(5, 5))
@@ -143,7 +181,7 @@ class SceneVisualizer:
         self.ax_3d.set_xlabel('X (meters)')
         self.ax_3d.set_ylabel('Y (meters)')
         self.ax_3d.set_zlabel('Z (meters)')
-        self.ax_3d.set_title('3D Scene with Ground Reference')
+        self.ax_3d.set_title('3D Scene (Mouse: Rotate/Pan/Zoom)')
 
         # Set equal aspect ratio and limits
         self.ax_3d.set_xlim(0, 5)
@@ -226,7 +264,7 @@ class SceneVisualizer:
         self.ax_3d.set_xlabel('X (meters)')
         self.ax_3d.set_ylabel('Y (meters)')
         self.ax_3d.set_zlabel('Z (meters)')
-        self.ax_3d.set_title('3D Scene with Ground Reference')
+        self.ax_3d.set_title('3D Scene (Mouse: Rotate/Pan/Zoom)')
         self.ax_3d.set_xlim(0, 5)
         self.ax_3d.set_ylim(0, 3)
         self.ax_3d.set_zlim(0, 2)
@@ -249,8 +287,12 @@ class SceneVisualizer:
             color = colors.get(node.cls, 'gray')
             size = node.bbox['xyz']
 
+            # Ensure minimum size for visibility (avoid flat 2D appearance)
+            min_size = 0.02
+            size = [max(s, min_size) for s in size]
+
             # Adjust object position to sit on ground (z = size[2]/2)
-            adjusted_pos = (node.pos[0], node.pos[1], size[2]/2)
+            adjusted_pos = (node.pos[0], node.pos[1], node.pos[2])
 
             box = self._create_box(adjusted_pos, size, color=color)
             self.ax_3d.add_collection3d(box)
@@ -334,10 +376,20 @@ class SceneVisualizer:
         # Only recalculate layout if graph structure changed
         if graph_signature != self.last_graph_signature:
             try:
-                pos = nx.spring_layout(G, k=2, iterations=50, seed=42)  # Fixed seed for consistency
+                # If we have a previous layout and only nodes were added (not removed),
+                # use incremental layout for better stability
+                current_nodes = set(G.nodes())
+                previous_nodes = set(self.graph_layout_cache.keys()) if self.graph_layout_cache else set()
+
+                if previous_nodes and current_nodes.issuperset(previous_nodes):
+                    # Only new nodes added - use incremental layout
+                    pos = nx.spring_layout(G, pos=self.graph_layout_cache, k=2, iterations=30, seed=42)
+                else:
+                    # Major structural change - full recalculation with better spacing
+                    pos = nx.spring_layout(G, k=3, iterations=50, seed=42)
             except:
                 # Fallback if spring layout fails
-                pos = {node: (i*0.3, 0) for i, node in enumerate(G.nodes)}
+                pos = {node: (i*0.5, (i%3)*0.5) for i, node in enumerate(G.nodes)}
 
             # Cache the new layout and signature
             self.graph_layout_cache = pos
@@ -562,6 +614,140 @@ class SceneVisualizer:
         except Exception as e:
             self._log_activity(f"❌ Command error: {str(e)}")
 
+    def _zoom_in(self):
+        """Zoom into the 3D view."""
+        try:
+            # Get current axis limits
+            xlim = self.ax_3d.get_xlim()
+            ylim = self.ax_3d.get_ylim()
+            zlim = self.ax_3d.get_zlim()
+
+            # Calculate zoom factor (zoom in by 20%)
+            zoom_factor = 0.8
+
+            # Calculate centers
+            x_center = (xlim[0] + xlim[1]) / 2
+            y_center = (ylim[0] + ylim[1]) / 2
+            z_center = (zlim[0] + zlim[1]) / 2
+
+            # Calculate new ranges
+            x_range = (xlim[1] - xlim[0]) * zoom_factor / 2
+            y_range = (ylim[1] - ylim[0]) * zoom_factor / 2
+            z_range = (zlim[1] - zlim[0]) * zoom_factor / 2
+
+            # Set new limits
+            self.ax_3d.set_xlim(x_center - x_range, x_center + x_range)
+            self.ax_3d.set_ylim(y_center - y_range, y_center + y_range)
+            self.ax_3d.set_zlim(z_center - z_range, z_center + z_range)
+
+            self.canvas_3d.draw()
+            self._log_activity("🔍 Zoomed in")
+
+        except Exception as e:
+            self._log_activity(f"❌ Zoom error: {str(e)}")
+
+    def _zoom_out(self):
+        """Zoom out of the 3D view."""
+        try:
+            # Get current axis limits
+            xlim = self.ax_3d.get_xlim()
+            ylim = self.ax_3d.get_ylim()
+            zlim = self.ax_3d.get_zlim()
+
+            # Calculate zoom factor (zoom out by 25%)
+            zoom_factor = 1.25
+
+            # Calculate centers
+            x_center = (xlim[0] + xlim[1]) / 2
+            y_center = (ylim[0] + ylim[1]) / 2
+            z_center = (zlim[0] + zlim[1]) / 2
+
+            # Calculate new ranges
+            x_range = (xlim[1] - xlim[0]) * zoom_factor / 2
+            y_range = (ylim[1] - ylim[0]) * zoom_factor / 2
+            z_range = (zlim[1] - zlim[0]) * zoom_factor / 2
+
+            # Set new limits (with bounds checking)
+            self.ax_3d.set_xlim(max(-1, x_center - x_range), min(6, x_center + x_range))
+            self.ax_3d.set_ylim(max(-1, y_center - y_range), min(4, y_center + y_range))
+            self.ax_3d.set_zlim(max(0, z_center - z_range), min(3, z_center + z_range))
+
+            self.canvas_3d.draw()
+            self._log_activity("🔍 Zoomed out")
+
+        except Exception as e:
+            self._log_activity(f"❌ Zoom error: {str(e)}")
+
+    def _reset_view(self):
+        """Reset 3D view to default position and zoom."""
+        try:
+            # Reset to original view limits
+            self.ax_3d.set_xlim(0, 5)
+            self.ax_3d.set_ylim(0, 3)
+            self.ax_3d.set_zlim(0, 2)
+
+            # Reset view angle to default
+            self.ax_3d.view_init(elev=20, azim=45)
+
+            self.canvas_3d.draw()
+            self._log_activity("🔄 Reset 3D view")
+
+        except Exception as e:
+            self._log_activity(f"❌ View reset error: {str(e)}")
+
+    def _validate_physics(self):
+        """Smart physics validation that preserves stacking."""
+        try:
+            self._log_activity("🔧 Smart physics validation...")
+
+            corrections = self.scene_modifier.validate_scene_physics()
+
+            if corrections:
+                # Show before/after positions for debugging
+                for object_id, corrected_pos in corrections.items():
+                    if object_id in self.graph.nodes:
+                        old_pos = self.graph.nodes[object_id].pos
+                        self._log_activity(f"   📍 {object_id}: {old_pos[2]:.3f} → {corrected_pos[2]:.3f} (Z)")
+
+                # Apply corrections
+                patch = GraphPatch()
+                for object_id, corrected_pos in corrections.items():
+                    patch.update_nodes[object_id] = {"pos": corrected_pos}
+
+                self.graph.apply_patch(patch)
+                self._update_displays()
+
+                self._log_activity(f"✅ Smart validation fixed {len(corrections)} objects")
+
+            else:
+                self._log_activity("✅ All objects are properly positioned!")
+
+        except Exception as e:
+            self._log_activity(f"❌ Physics validation error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    def _force_ground(self):
+        """Force all objects to ground level (emergency use)."""
+        try:
+            self._log_activity("⚠️  Forcing ALL objects to ground level...")
+
+            corrections = self.scene_modifier.force_ground_alignment()
+
+            if corrections:
+                # Apply corrections
+                patch = GraphPatch()
+                for object_id, corrected_pos in corrections.items():
+                    patch.update_nodes[object_id] = {"pos": corrected_pos}
+
+                self.graph.apply_patch(patch)
+                self._update_displays()
+
+                self._log_activity(f"✅ Forced {len(corrections)} objects to ground")
+
+        except Exception as e:
+            self._log_activity(f"❌ Force ground error: {str(e)}")
+
     def _update_displays(self):
         """Update all display components."""
         self._update_3d_view()
@@ -572,6 +758,11 @@ class SceneVisualizer:
         """Start the GUI application."""
         self._log_activity("🎯 SpacXT Visualizer initialized")
         self._log_activity("💡 Use controls to interact with the scene")
+
+        # Log auto-physics status
+        if hasattr(self.graph, 'auto_physics') and self.graph.auto_physics:
+            self._log_activity("🌍 Auto-physics enabled - objects snap to ground automatically")
+
         self._update_displays()
         self.root.mainloop()
 
