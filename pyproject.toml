@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "spacxt"
+version = "0.1.0"
+description = "Spatial Context Engine with Agentized Objects - A 3D Scene Graph with agent-based spatial reasoning"
+authors = ["Lu Liu <nudtlliu@gmail.com>"]
+readme = "README.md"
+packages = [{include = "spacxt", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0"
+black = "^23.0"
+isort = "^5.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+src_paths = ["src", "examples"]

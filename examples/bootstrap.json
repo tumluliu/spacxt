@@ -1,0 +1,129 @@
+{
+  "scene": {
+    "id": "apt_101",
+    "frame": "map",
+    "rooms": [
+      {
+        "id": "kitchen",
+        "bbox": {
+          "min": [
+            0,
+            0,
+            0
+          ],
+          "max": [
+            4,
+            3,
+            3
+          ]
+        }
+      }
+    ],
+    "objects": [
+      {
+        "id": "table_1",
+        "cls": "table",
+        "pos": [
+          1.5,
+          1.5,
+          0.75
+        ],
+        "ori": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [
+            1.2,
+            0.8,
+            0.75
+          ]
+        },
+        "aff": [
+          "support"
+        ],
+        "lom": "low",
+        "conf": 0.98
+      },
+      {
+        "id": "chair_12",
+        "cls": "chair",
+        "pos": [
+          0.9,
+          1.6,
+          0.45
+        ],
+        "ori": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [
+            0.5,
+            0.5,
+            0.9
+          ]
+        },
+        "aff": [
+          "sit"
+        ],
+        "lom": "medium",
+        "conf": 0.92
+      },
+      {
+        "id": "stove",
+        "cls": "stove",
+        "pos": [
+          3.4,
+          1.2,
+          0.9
+        ],
+        "ori": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [
+            0.7,
+            0.6,
+            0.9
+          ]
+        },
+        "state": {
+          "power": "off"
+        },
+        "aff": [
+          "heat"
+        ],
+        "lom": "fixed",
+        "conf": 0.99
+      }
+    ],
+    "relations": [
+      {
+        "r": "in",
+        "a": "table_1",
+        "b": "kitchen"
+      },
+      {
+        "r": "in",
+        "a": "chair_12",
+        "b": "kitchen"
+      },
+      {
+        "r": "in",
+        "a": "stove",
+        "b": "kitchen"
+      }
+    ]
+  }
+}
