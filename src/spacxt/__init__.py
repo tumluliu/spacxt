@@ -12,6 +12,14 @@ from .core.orchestrator import Bus, make_agents, tick
 from .protocols.a2a_protocol import A2AMessage
 from .tools.topo_tool import relate_near
 
+# GUI components (optional import)
+try:
+    from .gui.visualizer import SceneVisualizer
+    _GUI_AVAILABLE = True
+except ImportError:
+    _GUI_AVAILABLE = False
+    SceneVisualizer = None
+
 __all__ = [
     "SceneGraph",
     "Node",
@@ -24,3 +32,6 @@ __all__ = [
     "A2AMessage",
     "relate_near",
 ]
+
+if _GUI_AVAILABLE:
+    __all__.append("SceneVisualizer")

@@ -21,8 +21,10 @@ class Agent:
         if not me: return []
         neighbors = self.graph.neighbors(self.id, radius=1.5)
         msgs = []
+
         for nb in neighbors:
             rel = relate_near(me.__dict__, nb.__dict__)
+
             if rel["r"] == "near":
                 msg = A2AMessage(
                     type="RELATION_PROPOSE",
