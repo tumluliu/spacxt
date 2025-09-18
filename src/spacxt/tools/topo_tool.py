@@ -23,10 +23,26 @@ def detect_spatial_relation(node_a: Dict[str,Any], node_b: Dict[str,Any]) -> Dic
     # Height difference
     height_diff = abs(pos_a[2] - pos_b[2])
 
-    # Check for "on_top_of" relation
+    # Check for "on_top_of" relation (A on top of B)
     on_top_relation = check_on_top_of(pos_a, size_a, pos_b, size_b)
     if on_top_relation:
         return on_top_relation
+
+    # Check for "supports" relation (A supports B, i.e., B on top of A)
+    supports_relation = check_on_top_of(pos_b, size_b, pos_a, size_a)
+    if supports_relation:
+        # Create support relation (A supports B)
+        return {
+            "r": "supports",
+            "a": node_a["id"],  # A supports B
+            "b": node_b["id"],
+            "props": {
+                "height_diff": pos_b[2] - pos_a[2],
+                "x_offset": pos_b[0] - pos_a[0],
+                "y_offset": pos_b[1] - pos_a[1]
+            },
+            "conf": supports_relation["conf"]
+        }
 
     # Check for "beside" relation (close in 2D, similar height)
     beside_relation = check_beside(pos_a, size_a, pos_b, size_b, d_2d, height_diff)

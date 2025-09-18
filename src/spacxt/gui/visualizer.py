@@ -74,13 +74,27 @@ class SceneVisualizer:
         controls_frame = ttk.LabelFrame(right_frame, text="Controls", padding=5)
         controls_frame.pack(fill=tk.X, pady=(0, 5))
 
-        self.start_btn = ttk.Button(controls_frame, text="Start Simulation",
-                                   command=self._toggle_simulation)
-        self.start_btn.pack(fill=tk.X, pady=2)
+        # Scene controls
+        scene_control_frame = ttk.LabelFrame(controls_frame, text="Scene Controls", padding=3)
+        scene_control_frame.pack(fill=tk.X, pady=(5, 2))
 
-        self.step_btn = ttk.Button(controls_frame, text="Single Step",
+        # Advanced simulation controls (optional)
+        advanced_frame = ttk.LabelFrame(scene_control_frame, text="Advanced: Live Negotiation", padding=2)
+        advanced_frame.pack(fill=tk.X, pady=(0, 2))
+
+        self.start_btn = ttk.Button(advanced_frame, text="Start Live Negotiation",
+                                   command=self._toggle_simulation)
+        self.start_btn.pack(side=tk.LEFT, padx=2)
+
+        self.step_btn = ttk.Button(advanced_frame, text="Single Step",
                                   command=self._single_step)
-        self.step_btn.pack(fill=tk.X, pady=2)
+        self.step_btn.pack(side=tk.LEFT, padx=2)
+
+        # Info about intrinsic relationships
+        ttk.Label(scene_control_frame, text="🧠 Spatial relationships are intrinsic to the 3D scene",
+                 font=("Consolas", 8), foreground="darkgreen").pack(pady=(2, 0))
+        ttk.Label(scene_control_frame, text="   Agent negotiations happen automatically on scene changes",
+                 font=("Consolas", 8), foreground="gray").pack()
 
         self.reset_btn = ttk.Button(controls_frame, text="Reset Scene",
                                    command=self._reset_scene)
@@ -91,36 +105,12 @@ class SceneVisualizer:
                                   command=self._move_chair)
         self.move_btn.pack(fill=tk.X, pady=2)
 
-        # 3D View Controls
-        view_frame = ttk.LabelFrame(controls_frame, text="3D View Controls", padding=3)
-        view_frame.pack(fill=tk.X, pady=(5, 2))
-
-        # Zoom controls
-        zoom_frame = ttk.Frame(view_frame)
-        zoom_frame.pack(fill=tk.X)
-
-        self.zoom_in_btn = ttk.Button(zoom_frame, text="Zoom In",
-                                     command=self._zoom_in, width=8)
-        self.zoom_in_btn.pack(side=tk.LEFT, padx=2)
-
-        self.zoom_out_btn = ttk.Button(zoom_frame, text="Zoom Out",
-                                      command=self._zoom_out, width=8)
-        self.zoom_out_btn.pack(side=tk.LEFT, padx=2)
-
-        self.reset_view_btn = ttk.Button(zoom_frame, text="Reset View",
-                                        command=self._reset_view, width=8)
-        self.reset_view_btn.pack(side=tk.LEFT, padx=2)
-
         # Physics status (no manual buttons needed)
-        physics_frame = ttk.Frame(view_frame)
-        physics_frame.pack(fill=tk.X, pady=(2, 0))
+        physics_frame = ttk.Frame(controls_frame)
+        physics_frame.pack(fill=tk.X, pady=(5, 2))
 
         ttk.Label(physics_frame, text="🌍 Automatic Physics: Always Active",
                  font=("Consolas", 9), foreground="green").pack()
-
-        # View info
-        ttk.Label(view_frame, text="💡 Mouse: Left=Rotate, Right=Pan, Wheel=Zoom",
-                 font=("Consolas", 8), foreground="gray").pack(pady=(2, 0))
 
         # AI Chat Interface
         chat_frame = ttk.LabelFrame(right_frame, text="AI Assistant", padding=5)
@@ -202,6 +192,7 @@ class SceneVisualizer:
         """Initialize the 3D matplotlib plot and graph view."""
         # 3D Scene Plot
         self.fig_3d = plt.Figure(figsize=(8, 4))
+        self.fig_3d.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
         self.ax_3d = self.fig_3d.add_subplot(111, projection='3d')
 
         # Configure 3D plot
@@ -220,12 +211,37 @@ class SceneVisualizer:
         self.canvas_3d.draw()
         self.canvas_3d.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
+        # Add 3D view controls at the bottom (compact layout)
+        view_controls_frame = ttk.Frame(self.scene_3d_frame)
+        view_controls_frame.pack(fill=tk.X, pady=(1, 0))
+
+        # 3D control buttons (compact)
+        controls_left = ttk.Frame(view_controls_frame)
+        controls_left.pack(side=tk.LEFT)
+
+        self.zoom_in_btn = ttk.Button(controls_left, text="🔍+",
+                                     command=self._zoom_in, width=3)
+        self.zoom_in_btn.pack(side=tk.LEFT, padx=1)
+
+        self.zoom_out_btn = ttk.Button(controls_left, text="🔍-",
+                                      command=self._zoom_out, width=3)
+        self.zoom_out_btn.pack(side=tk.LEFT, padx=1)
+
+        self.reset_view_btn = ttk.Button(controls_left, text="🔄",
+                                        command=self._reset_view, width=3)
+        self.reset_view_btn.pack(side=tk.LEFT, padx=1)
+
+        # View info label (compact)
+        ttk.Label(view_controls_frame, text="💡 Mouse: Rotate/Pan/Zoom",
+                 font=("Consolas", 7), foreground="gray").pack(side=tk.RIGHT)
+
         # Graph View Plot
         self.fig_graph = plt.Figure(figsize=(8, 4))
+        self.fig_graph.subplots_adjust(left=0.15, right=0.85, top=0.8, bottom=0.15)
         self.ax_graph = self.fig_graph.add_subplot(111)
 
         # Configure graph plot
-        self.ax_graph.set_title('Spatial Relationship Network (Mouse: Pan/Zoom)')
+        self.ax_graph.set_title('Directed Spatial Relationships (Mouse: Pan/Zoom/Drag)')
         self.ax_graph.set_aspect('equal')
         self.ax_graph.axis('off')  # Hide axes for cleaner graph view
 
@@ -239,35 +255,51 @@ class SceneVisualizer:
         self.canvas_graph.draw()
         self.canvas_graph.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
-        # Add graph controls
+        # Enable built-in matplotlib navigation for graph
+        from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
+        self.graph_toolbar = NavigationToolbar2Tk(self.canvas_graph, self.graph_frame)
+        self.graph_toolbar.update()
+        # Hide the toolbar but keep the functionality
+        self.graph_toolbar.pack_forget()
+
+        # Add graph controls (compact layout)
         graph_controls_frame = ttk.Frame(self.graph_frame)
-        graph_controls_frame.pack(fill=tk.X, pady=(2, 0))
+        graph_controls_frame.pack(fill=tk.X, pady=(1, 0))
 
-        # Graph control buttons
-        self.graph_zoom_in_btn = ttk.Button(graph_controls_frame, text="🔍+",
-                                           command=self._graph_zoom_in, width=4)
-        self.graph_zoom_in_btn.pack(side=tk.LEFT, padx=2)
+        # Left side controls
+        controls_left = ttk.Frame(graph_controls_frame)
+        controls_left.pack(side=tk.LEFT)
 
-        self.graph_zoom_out_btn = ttk.Button(graph_controls_frame, text="🔍-",
-                                            command=self._graph_zoom_out, width=4)
-        self.graph_zoom_out_btn.pack(side=tk.LEFT, padx=2)
+        # Graph control buttons (compact)
+        self.graph_zoom_in_btn = ttk.Button(controls_left, text="🔍+",
+                                           command=self._graph_zoom_in, width=3)
+        self.graph_zoom_in_btn.pack(side=tk.LEFT, padx=1)
 
-        self.graph_reset_btn = ttk.Button(graph_controls_frame, text="🔄",
-                                         command=self._graph_reset_view, width=4)
-        self.graph_reset_btn.pack(side=tk.LEFT, padx=2)
+        self.graph_zoom_out_btn = ttk.Button(controls_left, text="🔍-",
+                                            command=self._graph_zoom_out, width=3)
+        self.graph_zoom_out_btn.pack(side=tk.LEFT, padx=1)
 
-        self.graph_rearrange_btn = ttk.Button(graph_controls_frame, text="⚡",
-                                             command=self._graph_rearrange, width=4)
-        self.graph_rearrange_btn.pack(side=tk.LEFT, padx=2)
+        self.graph_reset_btn = ttk.Button(controls_left, text="🔄",
+                                         command=self._graph_reset_view, width=3)
+        self.graph_reset_btn.pack(side=tk.LEFT, padx=1)
 
-        # Layout selector
-        ttk.Label(graph_controls_frame, text="Layout:", font=("Consolas", 8)).pack(side=tk.LEFT, padx=(10, 2))
+        self.graph_rearrange_btn = ttk.Button(controls_left, text="⚡",
+                                             command=self._graph_rearrange, width=3)
+        self.graph_rearrange_btn.pack(side=tk.LEFT, padx=1)
+
+        # Right side controls
+        controls_right = ttk.Frame(graph_controls_frame)
+        controls_right.pack(side=tk.RIGHT)
+
+        # Layout selector (compact)
         self.layout_var = tk.StringVar(value="spring")
-        self.layout_combo = ttk.Combobox(graph_controls_frame, textvariable=self.layout_var,
+        self.layout_combo = ttk.Combobox(controls_right, textvariable=self.layout_var,
                                         values=["spring", "circular", "shell", "kamada_kawai"],
-                                        width=10, font=("Consolas", 8))
-        self.layout_combo.pack(side=tk.LEFT, padx=2)
+                                        width=8, font=("Consolas", 7))
+        self.layout_combo.pack(side=tk.RIGHT, padx=1)
         self.layout_combo.bind('<<ComboboxSelected>>', self._on_layout_change)
+
+        ttk.Label(controls_right, text="Layout:", font=("Consolas", 7)).pack(side=tk.RIGHT, padx=(1, 2))
 
         # Initial render
         self._update_displays()
@@ -364,35 +396,7 @@ class SceneVisualizer:
                            f"{node.id}\n({node.cls})",
                            fontsize=8, ha='center')
 
-        # Draw relationships as lines
-        for (rel_type, a, b), relation in self.graph.relations.items():
-            if a in self.graph.nodes and b in self.graph.nodes:
-                node_a = self.graph.nodes[a]
-                node_b = self.graph.nodes[b]
-
-                # Skip "in" relationships for cleaner view
-                if rel_type == "in":
-                    continue
-
-                # Adjust positions for ground-sitting objects
-                size_a = node_a.bbox['xyz']
-                size_b = node_b.bbox['xyz']
-                pos_a = (node_a.pos[0], node_a.pos[1], size_a[2]/2)
-                pos_b = (node_b.pos[0], node_b.pos[1], size_b[2]/2)
-
-                # Draw line between objects
-                self.ax_3d.plot([pos_a[0], pos_b[0]],
-                               [pos_a[1], pos_b[1]],
-                               [pos_a[2], pos_b[2]],
-                               'g--', alpha=0.6, linewidth=2)
-
-                # Add relationship label
-                mid_x = (pos_a[0] + pos_b[0]) / 2
-                mid_y = (pos_a[1] + pos_b[1]) / 2
-                mid_z = (pos_a[2] + pos_b[2]) / 2
-                self.ax_3d.text(mid_x, mid_y, mid_z, f"{rel_type}\n{relation.conf:.2f}",
-                               fontsize=7, color='green', ha='center',
-                               bbox=dict(boxstyle="round,pad=0.3", facecolor='white', alpha=0.8))
+        # Note: Spatial relationships are now shown only in the graph view for clarity
 
         self.canvas_3d.draw()
 
@@ -401,12 +405,12 @@ class SceneVisualizer:
         self.ax_graph.clear()
 
         # Configure graph plot
-        self.ax_graph.set_title('Spatial Relationship Network')
+        self.ax_graph.set_title('Directed Spatial Relationships')
         self.ax_graph.set_aspect('equal')
         self.ax_graph.axis('off')
 
-        # Create NetworkX graph
-        G = nx.Graph()
+        # Create NetworkX directed graph for spatial relationships
+        G = nx.DiGraph()
 
         # Add nodes (objects)
         for node_id, node in self.graph.nodes.items():
@@ -473,20 +477,54 @@ class SceneVisualizer:
             self.ax_graph.text(x, y-0.15, f"{node}\n({node_data.cls})",
                               ha='center', va='top', fontsize=8, zorder=3)
 
-        # Draw edges (relationships)
+        # Draw directed edges with arrows and curved paths
+        import matplotlib.patches as patches
+
         for (a, b), label in edge_labels.items():
             if a in pos and b in pos:
                 x1, y1 = pos[a]
                 x2, y2 = pos[b]
 
-                # Draw edge line
-                self.ax_graph.plot([x1, x2], [y1, y2], 'g-', alpha=0.6, linewidth=2, zorder=1)
+                # Calculate arrow properties
+                dx = x2 - x1
+                dy = y2 - y1
+                length = (dx**2 + dy**2)**0.5
 
-                # Add edge label
-                mid_x, mid_y = (x1 + x2) / 2, (y1 + y2) / 2
-                self.ax_graph.text(mid_x, mid_y, label, ha='center', va='center',
-                                  fontsize=7, color='green', zorder=3,
-                                  bbox=dict(boxstyle="round,pad=0.2", facecolor='white', alpha=0.8))
+                if length > 0:
+                    # Normalize direction
+                    dx_norm = dx / length
+                    dy_norm = dy / length
+
+                    # Offset start and end points to avoid overlapping with nodes
+                    offset = 0.12
+                    start_x = x1 + dx_norm * offset
+                    start_y = y1 + dy_norm * offset
+                    end_x = x2 - dx_norm * offset
+                    end_y = y2 - dy_norm * offset
+
+                    # Create curved path for better edge separation
+                    curve_offset = 0.1
+                    mid_x = (start_x + end_x) / 2 + dy_norm * curve_offset
+                    mid_y = (start_y + end_y) / 2 - dx_norm * curve_offset
+
+                    # Draw curved edge
+                    self.ax_graph.plot([start_x, mid_x, end_x], [start_y, mid_y, end_y],
+                                      'g-', alpha=0.7, linewidth=2, zorder=1)
+
+                    # Draw arrowhead
+                    arrow_size = 0.08
+                    arrow = patches.FancyArrowPatch((mid_x, mid_y), (end_x, end_y),
+                                                   arrowstyle='->', mutation_scale=15,
+                                                   color='green', alpha=0.8, zorder=2)
+                    self.ax_graph.add_patch(arrow)
+
+                    # Add edge label (positioned along the curve)
+                    label_x = mid_x
+                    label_y = mid_y
+                    self.ax_graph.text(label_x, label_y, label, ha='center', va='center',
+                                      fontsize=7, color='darkgreen', zorder=3, weight='bold',
+                                      bbox=dict(boxstyle="round,pad=0.2", facecolor='lightyellow',
+                                               alpha=0.9, edgecolor='green'))
 
         # Set equal aspect and adjust limits with zoom support
         if pos:
@@ -498,7 +536,7 @@ class SceneVisualizer:
             base_xlim = (min(x_coords) - margin, max(x_coords) + margin)
             base_ylim = (min(y_coords) - margin, max(y_coords) + margin)
 
-            # Apply zoom and custom limits if set
+            # Apply zoom and custom limits (simple approach)
             if self.graph_xlim and self.graph_ylim:
                 self.ax_graph.set_xlim(self.graph_xlim)
                 self.ax_graph.set_ylim(self.graph_ylim)
@@ -545,8 +583,8 @@ class SceneVisualizer:
         """Start/stop the simulation."""
         if not self.running:
             self.running = True
-            self.start_btn.config(text="Stop Simulation")
-            self._log_activity("🚀 Starting simulation...")
+            self.start_btn.config(text="Stop Live Negotiation")
+            self._log_activity("🚀 Starting live negotiation mode (continuous agent discussions)...")
 
             # Start simulation thread
             self.animation_thread = threading.Thread(target=self._simulation_loop)
@@ -554,8 +592,8 @@ class SceneVisualizer:
             self.animation_thread.start()
         else:
             self.running = False
-            self.start_btn.config(text="Start Simulation")
-            self._log_activity("⏹️ Simulation stopped")
+            self.start_btn.config(text="Start Live Negotiation")
+            self._log_activity("⏹️ Live negotiation stopped (relationships still update automatically on changes)")
 
     def _simulation_loop(self):
         """Main simulation loop running in separate thread."""
@@ -605,6 +643,11 @@ class SceneVisualizer:
             self.graph.apply_patch(patch)
 
             self._update_displays()
+
+            # Auto-update relationships after move
+            self._auto_update_relationships_on_change()
+            self._update_displays()  # Update again to show new relationships
+
             self._log_activity("📦 Moved chair to new position")
 
         except Exception as e:
@@ -615,7 +658,7 @@ class SceneVisualizer:
         try:
             # Stop simulation
             self.running = False
-            self.start_btn.config(text="Start Simulation")
+            self.start_btn.config(text="Start Live Negotiation")
 
             # Reset chair position
             patch = GraphPatch()
@@ -756,11 +799,13 @@ class SceneVisualizer:
             # Log activity
             self._log_activity(f"✅ {message}")
 
-            # Run a few ticks to let agents discover new relationships
-            for _ in range(3):
-                tick(self.graph, self.bus, self.scene_modifier.agents)
+            # Sync agents from scene modifier (in case new objects were added)
+            self.agents.update(self.scene_modifier.agents)
 
-            # Update displays again
+            # Auto-update relationships after scene modification
+            self._auto_update_relationships_on_change()
+
+            # Update displays again to show new relationships
             self._update_displays()
 
         except Exception as e:
@@ -950,6 +995,74 @@ class SceneVisualizer:
         except Exception as e:
             self._log_activity(f"❌ Layout change error: {str(e)}")
 
+    def _auto_calculate_relationships(self):
+        """Automatically calculate spatial relationships for all objects with visible negotiation."""
+        try:
+            self._log_activity("🤝 Starting agent negotiations for spatial relationships...")
+            initial_relations = len([r for r in self.graph.relations.keys() if r[0] != "in"])
+
+            # Run agent simulation with detailed logging
+            for i in range(5):  # 5 ticks should be enough for initial discovery
+                self._log_activity(f"   🔄 Negotiation round {i+1}/5...")
+
+                # Track messages before tick
+                initial_msgs = sum(len(self.bus.queues[aid]) for aid in self.agents.keys())
+
+                tick(self.graph, self.bus, self.agents)
+
+                # Track messages after tick and log activity
+                final_msgs = sum(len(self.bus.queues[aid]) for aid in self.agents.keys())
+                current_relations = len([r for r in self.graph.relations.keys() if r[0] != "in"])
+
+                if current_relations > initial_relations:
+                    new_relations = current_relations - initial_relations
+                    self._log_activity(f"   ✨ Found {new_relations} new relationships")
+                    initial_relations = current_relations
+
+                # Update display after each significant tick
+                if i % 2 == 1:  # Update every other tick to show progress
+                    self._update_displays()
+
+            # Final count
+            final_relations = len([r for r in self.graph.relations.keys() if r[0] != "in"])
+            total_discovered = final_relations - (initial_relations - (final_relations - initial_relations))
+
+            if total_discovered > 0:
+                self._log_activity(f"🎉 Agent negotiations complete! Established {final_relations} spatial relationships")
+            else:
+                self._log_activity("ℹ️ No spatial relationships detected in current scene")
+
+        except Exception as e:
+            self._log_activity(f"❌ Negotiation error: {str(e)}")
+
+    def _auto_update_relationships_on_change(self):
+        """Run visible agent negotiations when the scene changes."""
+        try:
+            self._log_activity("🔍 Scene changed - agents analyzing new spatial relationships...")
+            initial_relations = len([r for r in self.graph.relations.keys() if r[0] != "in"])
+
+            # Run 3-5 ticks with visible progress
+            for i in range(4):
+                self._log_activity(f"   🤝 Agents negotiating... (round {i+1})")
+                tick(self.graph, self.bus, self.agents)
+
+                # Check for new relationships
+                current_relations = len([r for r in self.graph.relations.keys() if r[0] != "in"])
+                if current_relations > initial_relations:
+                    new_count = current_relations - initial_relations
+                    self._log_activity(f"   ✅ {new_count} new spatial relationship(s) established")
+                    initial_relations = current_relations
+
+            # Final summary
+            final_relations = len([r for r in self.graph.relations.keys() if r[0] != "in"])
+            if final_relations != initial_relations:
+                self._log_activity("🎯 Spatial context updated successfully")
+            else:
+                self._log_activity("ℹ️ No new relationships detected")
+
+        except Exception as e:
+            self._log_activity(f"❌ Spatial analysis error: {str(e)}")
+
 
     def _update_displays(self):
         """Update all display components."""
@@ -965,6 +1078,10 @@ class SceneVisualizer:
         # Log auto-physics status
         if hasattr(self.graph, 'auto_physics') and self.graph.auto_physics:
             self._log_activity("🌍 Auto-physics enabled - objects snap to ground automatically")
+
+        # Auto-calculate initial spatial relationships
+        self._log_activity("🧠 Initializing intrinsic spatial context...")
+        self._auto_calculate_relationships()
 
         self._update_displays()
         self.root.mainloop()
