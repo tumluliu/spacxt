@@ -102,6 +102,11 @@ class SceneVisualizer:
                                    command=self._reset_scene)
         self.reset_btn.pack(fill=tk.X, pady=2)
 
+        # Demo scene loader
+        self.demo_btn = ttk.Button(controls_frame, text="Load Q&A Demo Scene",
+                                  command=self._load_demo_scene)
+        self.demo_btn.pack(fill=tk.X, pady=2)
+
         # Move chair button
         self.move_btn = ttk.Button(controls_frame, text="Move Chair",
                                   command=self._move_chair)
@@ -163,6 +168,7 @@ class SceneVisualizer:
 
         # Initialize chat
         self._add_chat_message("system", "Welcome! I can help you manipulate the 3D scene and answer spatial questions.")
+        self._add_chat_message("system", "💡 Try the 'Load Q&A Demo Scene' button and '🎯 Start Q&A Tour' for a guided experience!")
         self._add_chat_message("system", "Commands: 'put a cup on the table', 'move the chair', 'add a book'")
         self._add_chat_message("system", "Questions: 'what objects are on the table?', 'what if I remove the table?', 'where is the cup?'")
 
@@ -177,6 +183,39 @@ class SceneVisualizer:
                                                        width=30, height=10,
                                                        font=("Consolas", 10))
         self.relations_text.pack(fill=tk.BOTH, expand=True)
+
+        # Q&A Demo panel
+        qa_demo_frame = ttk.LabelFrame(right_frame, text="Q&A Demo", padding=5)
+        qa_demo_frame.pack(fill=tk.X, pady=(5, 5))
+
+        # Demo questions grid
+        demo_questions = [
+            ("What's on table?", "What objects are on the table?"),
+            ("Where are cups?", "Where are all the cups in the scene?"),
+            ("What if remove table?", "What if I remove the table?"),
+            ("Which reachable?", "Which objects can I easily reach?"),
+            ("Scene overview?", "Tell me about the overall scene layout"),
+            ("Stability check?", "Which objects are stable and which depend on others?")
+        ]
+
+        # Create a 2-column grid of demo question buttons
+        for i, (short_text, full_question) in enumerate(demo_questions):
+            row = i // 2
+            col = i % 2
+
+            btn = ttk.Button(qa_demo_frame, text=short_text,
+                           command=lambda q=full_question: self._ask_demo_question(q),
+                           width=15)
+            btn.grid(row=row, column=col, padx=2, pady=1, sticky="ew")
+
+        # Configure grid weights
+        qa_demo_frame.columnconfigure(0, weight=1)
+        qa_demo_frame.columnconfigure(1, weight=1)
+
+        # Add tour button below the grid
+        tour_btn = ttk.Button(qa_demo_frame, text="🎯 Start Q&A Tour",
+                             command=self._start_qa_tour)
+        tour_btn.grid(row=3, column=0, columnspan=2, pady=(5, 0), sticky="ew")
 
         # Agent activity panel
         activity_frame = ttk.LabelFrame(right_frame, text="Agent Activity", padding=5)
@@ -683,6 +722,192 @@ class SceneVisualizer:
         except Exception as e:
             self._log_activity(f"❌ Reset error: {str(e)}")
 
+    def _load_demo_scene(self):
+        """Load a rich demo scene for Q&A demonstration."""
+        try:
+            self._log_activity("🎬 Loading Q&A demo scene...")
+
+            # Stop simulation first
+            self.running = False
+            self.start_btn.config(text="Start Live Negotiation")
+
+            # Clear current scene except bootstrap objects
+            bootstrap_objects = {"table_1", "chair_12", "stove"}
+            objects_to_remove = [obj_id for obj_id in self.graph.nodes.keys()
+                               if obj_id not in bootstrap_objects]
+
+            for obj_id in objects_to_remove:
+                if obj_id in self.agents:
+                    del self.agents[obj_id]
+                if obj_id in self.graph.nodes:
+                    del self.graph.nodes[obj_id]
+
+            # Remove non-bootstrap relationships
+            keys_to_remove = []
+            for key in self.graph.relations.keys():
+                if key[0] not in ["in"] or key[1] not in bootstrap_objects or key[2] not in bootstrap_objects:
+                    if not (key[0] == "in" and key[2] == "kitchen"):  # Keep room relationships
+                        keys_to_remove.append(key)
+
+            for key in keys_to_remove:
+                if key in self.graph.relations:
+                    del self.graph.relations[key]
+
+            # Reset chair to original position
+            if "chair_12" in self.graph.nodes:
+                patch = GraphPatch()
+                patch.update_nodes["chair_12"] = {"pos": (0.9, 1.6, 0.45)}
+                self.graph.apply_patch(patch)
+
+            # Add demo objects using scene modifier
+            demo_objects = [
+                ("coffee_cup", "on the table", 1),
+                ("coffee_cup", "on the table", 1),
+                ("book", "on the table", 1),
+                ("lamp", "near the stove", 1)
+            ]
+
+            added_objects = []
+            for obj_type, location, quantity in demo_objects:
+                try:
+                    # Parse the location into a command
+                    if location == "on the table":
+                        from ..nlp.llm_parser import ParsedCommand
+                        command = ParsedCommand(
+                            action="add",
+                            object_type=obj_type,
+                            spatial_relation="on_top_of",
+                            target_object="table_1",
+                            quantity=quantity
+                        )
+                    elif location == "near the stove":
+                        command = ParsedCommand(
+                            action="add",
+                            object_type=obj_type,
+                            spatial_relation="near",
+                            target_object="stove",
+                            quantity=quantity
+                        )
+
+                    success, message = self.scene_modifier.execute_command(command)
+                    if success:
+                        added_objects.append(f"{obj_type} {location}")
+
+                except Exception as e:
+                    self._log_activity(f"⚠️ Error adding {obj_type}: {str(e)}")
+
+            # Update displays
+            self._update_displays()
+
+            # Ensure support relationships are analyzed
+            self.scene_modifier.support_system.analyze_and_update_support_relationships()
+
+            # Debug: Log current support relationships
+            support_status = self.scene_modifier.support_system.get_system_status()
+            if support_status["dependents"]:
+                self._log_activity(f"🔗 Direct support relationships: {support_status['dependents']}")
+                if support_status.get("recursive_dependents"):
+                    self._log_activity(f"🔄 Recursive dependencies: {support_status['recursive_dependents']}")
+            else:
+                self._log_activity("⚠️ No support relationships detected")
+
+            # Log object positions for debugging
+            for obj_id, node in self.graph.nodes.items():
+                if obj_id not in {"table_1", "chair_12", "stove"}:  # Only log added objects
+                    self._log_activity(f"📍 {obj_id}: position {node.pos}, size {node.bbox['xyz']}")
+
+            # Log success
+            if added_objects:
+                self._log_activity(f"✅ Demo scene loaded! Added: {', '.join(added_objects)}")
+                self._log_activity("🤔 Try asking: 'What objects are on the table?'")
+                self._log_activity("🤔 Or: 'What if I remove the table?'")
+                self._log_activity("🤔 Or: 'Which objects can I easily reach?'")
+            else:
+                self._log_activity("⚠️ Demo scene loaded but no objects were added")
+
+        except Exception as e:
+            self._log_activity(f"❌ Demo scene error: {str(e)}")
+
+    def _ask_demo_question(self, question: str):
+        """Ask a predefined demo question."""
+        if self.chat_processing:
+            return
+
+        # Add the question to the chat input
+        self.command_entry.delete(1.0, tk.END)
+        self.command_entry.insert(1.0, question)
+
+        # Execute the question
+        self._execute_command()
+
+        # Log that this was a demo question
+        self._log_activity(f"🎯 Demo question: {question}")
+
+    def _start_qa_tour(self):
+        """Start a guided tour of Q&A capabilities."""
+        if self.chat_processing:
+            return
+
+        # Initialize tour state
+        self.tour_active = True
+        self.tour_step = 0
+        self.tour_questions = [
+            ("Load Demo Scene", None, "First, let's load a rich scene for demonstration"),
+            ("Relationship Query", "What objects are on the table?", "Let's explore object relationships"),
+            ("Location Query", "Where are all the cups in the scene?", "Now let's find object locations"),
+            ("What-If Scenario", "What if I remove the table?", "Let's predict what would happen"),
+            ("Accessibility Analysis", "Which objects can I easily reach?", "Let's analyze object accessibility"),
+            ("Scene Overview", "Tell me about the overall scene layout", "Finally, let's get a scene overview")
+        ]
+
+        self._add_chat_message("system", "🎯 Starting Q&A Capabilities Tour!")
+        self._add_chat_message("system", "This tour will demonstrate the spatial reasoning capabilities of SpacXT.")
+
+        # Start the tour
+        self._continue_qa_tour()
+
+    def _continue_qa_tour(self):
+        """Continue to the next step of the Q&A tour."""
+        if not hasattr(self, 'tour_active') or not self.tour_active:
+            return
+
+        if self.tour_step >= len(self.tour_questions):
+            # Tour complete
+            self._add_chat_message("system", "🎉 Q&A Tour Complete!")
+            self._add_chat_message("system", "You can now explore the spatial Q&A system on your own.")
+            self._add_chat_message("system", "Try asking your own questions or use the demo buttons above!")
+            self.tour_active = False
+            return
+
+        step_name, question, description = self.tour_questions[self.tour_step]
+
+        self._add_chat_message("system", f"📍 Step {self.tour_step + 1}: {step_name}")
+        self._add_chat_message("system", description)
+
+        if question is None:
+            # Special step - load demo scene
+            self._load_demo_scene()
+            # Schedule next step after scene loads
+            self.root.after(2000, self._next_tour_step)
+        else:
+            # Ask the question
+            self._add_chat_message("system", f"Asking: '{question}'")
+
+            # Set up to continue tour after question is processed
+            self.tour_continue_after_qa = True
+
+            # Ask the question
+            self.command_entry.delete(1.0, tk.END)
+            self.command_entry.insert(1.0, question)
+            self._execute_command()
+
+    def _next_tour_step(self):
+        """Move to the next tour step."""
+        if hasattr(self, 'tour_active') and self.tour_active:
+            self.tour_step += 1
+            # Add a small delay before continuing
+            self.root.after(1500, self._continue_qa_tour)
+
     def _add_chat_message(self, sender: str, message: str):
         """Add a message to the chat history."""
         self.chat_history.config(state=tk.NORMAL)
@@ -868,6 +1093,11 @@ class SceneVisualizer:
             if question_type in ["complex", "what_if"] and qa_result.get("spatial_context_used"):
                 context_info = qa_result["spatial_context_used"]
                 self._log_activity(f"📊 Used spatial context: {context_info['total_objects']} objects, {len(context_info['relationship_types'])} relation types")
+
+            # Continue tour if active
+            if hasattr(self, 'tour_continue_after_qa') and self.tour_continue_after_qa:
+                self.tour_continue_after_qa = False
+                self.root.after(2000, self._next_tour_step)
 
         except Exception as e:
             self._add_chat_message("error", f"Error displaying Q&A result: {str(e)}")

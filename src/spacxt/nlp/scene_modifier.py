@@ -6,7 +6,7 @@ Modifies the spatial scene based on structured commands from the CommandParser.
 
 import random
 import math
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, Optional, Tuple, Any
 from ..core.graph_store import SceneGraph, Node, GraphPatch
 from ..core.orchestrator import Bus
 from ..core.agents import Agent
@@ -69,29 +69,32 @@ class ObjectTemplates:
             # Books and media
             'book': {
                 'cls': 'book',
-                'bbox': {'type': 'OBB', 'xyz': [0.15, 0.23, 0.03]},
+                'bbox': {'type': 'OBB', 'xyz': [0.23, 0.15, 0.03]},  # Laying flat: length x width x thickness
                 'aff': ['readable', 'portable'],
                 'lom': 'high',
                 'conf': 0.96,
-                'color': 'varied'
+                'color': 'varied',
+                'orientation': 'flat'  # Indicates this object should lay flat
             },
             'laptop': {
                 'cls': 'laptop',
-                'bbox': {'type': 'OBB', 'xyz': [0.35, 0.25, 0.03]},
+                'bbox': {'type': 'OBB', 'xyz': [0.35, 0.25, 0.03]},  # Laying flat: length x width x thickness
                 'aff': ['computing', 'portable'],
                 'lom': 'medium',
                 'conf': 0.98,
                 'color': 'black',
-                'state': {'power': 'off', 'battery': 85}
+                'state': {'power': 'off', 'battery': 85},
+                'orientation': 'flat'
             },
             'phone': {
                 'cls': 'phone',
-                'bbox': {'type': 'OBB', 'xyz': [0.07, 0.15, 0.01]},
+                'bbox': {'type': 'OBB', 'xyz': [0.15, 0.07, 0.01]},  # Laying flat: length x width x thickness
                 'aff': ['communication', 'portable'],
                 'lom': 'high',
                 'conf': 0.97,
                 'color': 'black',
-                'state': {'battery': 78, 'signal': 'good'}
+                'state': {'battery': 78, 'signal': 'good'},
+                'orientation': 'flat'
             },
 
             # Decorative items
@@ -151,11 +154,12 @@ class ObjectTemplates:
             },
             'paper': {
                 'cls': 'paper',
-                'bbox': {'type': 'OBB', 'xyz': [0.21, 0.30, 0.001]},
+                'bbox': {'type': 'OBB', 'xyz': [0.30, 0.21, 0.001]},  # Laying flat: length x width x thickness
                 'aff': ['writable', 'portable'],
                 'lom': 'high',
                 'conf': 0.82,
-                'color': 'white'
+                'color': 'white',
+                'orientation': 'flat'
             },
         }
 
@@ -200,8 +204,9 @@ class SceneModifier:
             else:
                 object_id = command.object_id or f"{command.object_type}_1"
 
-            # Use LLM-enhanced properties if available, otherwise fall back to templates
-            if 'bbox' in command.properties and 'affordances' in command.properties:
+            # Use LLM-enhanced properties if available, but prioritize templates for objects with specific orientation needs
+            if ('bbox' in command.properties and 'affordances' in command.properties and
+                command.object_type not in ['book', 'laptop', 'phone', 'paper']):  # Objects that need proper orientation
                 # LLM provided enhanced properties
                 template = {
                     'cls': command.object_type,
@@ -213,9 +218,11 @@ class SceneModifier:
                     'material': command.properties.get('material', 'unknown'),
                     'weight_kg': command.properties.get('weight_kg', 1.0)
                 }
+                print(f"🔧 Using LLM properties for {command.object_type}: {template['bbox']}")
             elif command.object_type in self.templates:
                 # Use template
                 template = self.templates[command.object_type].copy()
+                print(f"📋 Using template for {command.object_type}: {template['bbox']}")
             else:
                 # Create basic template for unknown objects
                 template = {
@@ -226,6 +233,7 @@ class SceneModifier:
                     'conf': 0.7,
                     'color': 'gray'
                 }
+                print(f"❓ Using default template for unknown {command.object_type}: {template['bbox']}")
 
             # Use physics engine for proper positioning
             object_size = template['bbox']['xyz']
@@ -346,15 +354,23 @@ class SceneModifier:
             return False, f"Failed to move any {command.object_type}s"
 
     def _move_single_object(self, object_id: str, command: ParsedCommand) -> Tuple[bool, str]:
-        """Move a single object."""
+        """Move a single object and all its dependent objects."""
         if object_id not in self.graph.nodes:
             return False, f"Object {object_id} not found in scene"
 
         node = self.graph.nodes[object_id]
+        old_position = node.pos
         object_size = node.bbox['xyz']
         placement_type = self._get_placement_type(command)
 
-        position = self.placement_engine.place_object(
+        # FIRST: Ensure support relationships are current
+        self.support_system.analyze_and_update_support_relationships()
+
+        # Get all dependent objects recursively (including objects stacked on top of direct dependents)
+        dependent_objects = self.support_system.support_tracker.get_all_dependent_objects_recursive(object_id)
+
+        # Calculate new position for the main object
+        new_position = self.placement_engine.place_object(
             object_id=object_id,
             object_size=object_size,
             placement_type=placement_type,
@@ -362,12 +378,43 @@ class SceneModifier:
             randomness=0.2
         )
 
-        # Update object position
+        # Calculate the movement offset
+        movement_offset = (
+            new_position[0] - old_position[0],
+            new_position[1] - old_position[1],
+            new_position[2] - old_position[2]
+        )
+
+        # Update positions of the main object and all its dependents
         patch = GraphPatch()
-        patch.update_nodes[object_id] = {"pos": position}
+        patch.update_nodes[object_id] = {"pos": new_position}
+
+        # Move dependent objects with the same offset (maintaining their relative positions)
+        moved_dependents = []
+        for dep_id in dependent_objects:
+            if dep_id in self.graph.nodes:
+                dep_node = self.graph.nodes[dep_id]
+                dep_old_pos = dep_node.pos
+                dep_new_pos = (
+                    dep_old_pos[0] + movement_offset[0],
+                    dep_old_pos[1] + movement_offset[1],
+                    dep_old_pos[2] + movement_offset[2]
+                )
+                patch.update_nodes[dep_id] = {"pos": dep_new_pos}
+                moved_dependents.append(dep_id)
+
+        # Apply all position updates
         self.graph.apply_patch(patch)
 
-        return True, f"Moved {object_id} to new position"
+        # Update support relationships after movement
+        self.support_system.analyze_and_update_support_relationships()
+
+        # Prepare result message
+        result_message = f"Moved {object_id} to new position"
+        if moved_dependents:
+            result_message += f" (also moved {len(moved_dependents)} dependent objects: {', '.join(moved_dependents)})"
+
+        return True, result_message
 
     def _remove_object(self, command: ParsedCommand) -> Tuple[bool, str]:
         """Remove an object from the scene with cascade physics for dependent objects."""

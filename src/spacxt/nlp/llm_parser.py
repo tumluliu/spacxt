@@ -82,6 +82,10 @@ class LLMCommandParser:
                 return None
 
             # Convert LLM result to ParsedCommand
+            quantity = llm_result.get("quantity", 1)
+            print(f"🔢 LLM parsed quantity: {quantity} for command: '{command}'")
+            print(f"📝 Full LLM result: {llm_result}")
+
             parsed_cmd = ParsedCommand(
                 action=llm_result.get("action", "add"),
                 object_type=llm_result.get("object_type", "unknown_object"),
@@ -91,7 +95,7 @@ class LLMCommandParser:
                 position=tuple(llm_result["position"]) if llm_result.get("position") else None,
                 properties=llm_result.get("properties", {}),
                 confidence=llm_result.get("confidence", 0.8),
-                quantity=llm_result.get("quantity", 1)
+                quantity=quantity
             )
 
             # Generate object ID if not provided and action is add

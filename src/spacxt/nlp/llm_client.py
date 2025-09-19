@@ -155,6 +155,7 @@ For CUSTOM spatial relations:
 
 Examples:
 - "put a coffee cup on the table" -> {{"action": "add", "object_type": "coffee_cup", "object_id": "coffee_cup_1", "target_object": "table_1", "spatial_relation": "on_top_of", "quantity": 1, "confidence": 0.95}}
+- "add two books on the table" -> {{"action": "add", "object_type": "book", "object_id": "book_1", "target_object": "table_1", "spatial_relation": "on_top_of", "quantity": 2, "confidence": 0.90}}
 - "add a chair between the table and stove" -> {{"action": "add", "object_type": "chair", "object_id": "chair_2", "spatial_relation": "custom", "position": [2.45, 1.35, 0.45], "properties": {{"spatial_description": "between table_1 and stove"}}, "quantity": 1, "confidence": 0.90}}
 - "place a lamp in the corner" -> {{"action": "add", "object_type": "lamp", "object_id": "lamp_1", "spatial_relation": "custom", "position": [0.2, 0.2, 0.25], "properties": {{"spatial_description": "in corner of room"}}, "confidence": 0.85}}
 
@@ -162,6 +163,12 @@ IMPORTANT: For ground-level objects, calculate Z coordinate as: ground_level + o
 - Chairs (height 0.9m): Z = 0.0 + 0.9/2 = 0.45
 - Tables (height 0.75m): Z = 0.0 + 0.75/2 = 0.375
 - Small objects like cups (height 0.1m): Z = 0.0 + 0.1/2 = 0.05
+
+OBJECT ORIENTATION: Flat objects should lay flat with proper dimensions:
+- Books: [length, width, thickness] = [0.23, 0.15, 0.03] (laying flat, not standing)
+- Laptops: [length, width, thickness] = [0.35, 0.25, 0.03] (closed, laying flat)
+- Phones: [length, width, thickness] = [0.15, 0.07, 0.01] (laying flat)
+- Papers: [length, width, thickness] = [0.30, 0.21, 0.001] (laying flat)
 
 Return ONLY the JSON, no other text."""
 
@@ -261,7 +268,7 @@ Return ONLY the JSON."""
                 "confidence": 0.8
             },
             "book": {
-                "bbox": {"type": "OBB", "xyz": [0.15, 0.23, 0.03]},
+                "bbox": {"type": "OBB", "xyz": [0.23, 0.15, 0.03]},
                 "affordances": ["readable", "portable"],
                 "material": "paper",
                 "weight_kg": 0.5,

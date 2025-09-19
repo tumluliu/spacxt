@@ -5,10 +5,9 @@ This system leverages the rich spatial context representation to answer complex 
 about object relationships, dependencies, and spatial reasoning.
 """
 
-from typing import Dict, List, Any, Optional, Tuple
-from ..core.graph_store import SceneGraph, Node, Relation
+from typing import Dict, List, Any, Tuple
+from ..core.graph_store import SceneGraph
 from ..physics.support_system import SupportSystem
-from ..physics.collision_detector import CollisionDetector
 from .llm_client import LLMClient
 
 
@@ -279,8 +278,14 @@ class SpatialQASystem:
         """Classify the type of spatial question."""
         question_lower = question.lower()
 
+        # What-if questions (check first to avoid conflicts)
+        if any(phrase in question_lower for phrase in ["what if", "if i", "what happens if", "what would happen"]):
+            return "what_if"
+        elif question_lower.startswith("if ") and any(word in question_lower for word in ["remove", "delete", "move"]):
+            return "what_if"
+
         # Relationship questions
-        if any(word in question_lower for word in ["relationship", "related", "connected", "on", "near", "beside", "support"]):
+        elif any(word in question_lower for word in ["relationship", "related", "connected", "on", "near", "beside", "support"]):
             return "relationship"
 
         # Location questions
@@ -288,16 +293,14 @@ class SpatialQASystem:
             return "location"
 
         # Accessibility questions
-        elif any(word in question_lower for word in ["reach", "access", "get", "move", "blocked"]):
+        elif any(word in question_lower for word in ["reach", "access", "get", "blocked"]):
+            return "accessibility"
+        elif "can i" in question_lower and any(word in question_lower for word in ["move", "get", "reach"]):
             return "accessibility"
 
         # Stability questions
-        elif any(word in question_lower for word in ["stable", "fall", "collapse", "support", "depends"]):
+        elif any(word in question_lower for word in ["stable", "fall", "collapse", "depends"]):
             return "stability"
-
-        # What-if questions
-        elif any(word in question_lower for word in ["what if", "if i", "happen", "remove", "move"]):
-            return "what_if"
 
         # Complex reasoning questions
         elif any(word in question_lower for word in ["why", "how", "explain", "reason"]):
@@ -314,20 +317,48 @@ class SpatialQASystem:
 
         # Extract object names from question
         mentioned_objects = []
+        question_lower = question.lower()
+
         for obj_id in objects.keys():
-            if obj_id.lower() in question.lower() or objects[obj_id]["class"] in question.lower():
+            if obj_id.lower() in question_lower or objects[obj_id]["class"] in question_lower:
                 mentioned_objects.append(obj_id)
+
+        # Special handling for "on the table" type questions
+        if "table" in question_lower and not mentioned_objects:
+            # Find table objects
+            for obj_id, obj_data in objects.items():
+                if obj_data["class"] == "table":
+                    mentioned_objects.append(obj_id)
 
         relevant_relationships = []
         for rel in relationships:
-            if rel["subject"] in mentioned_objects or rel["object"] in mentioned_objects:
-                relevant_relationships.append(rel)
+            # Skip room containment relationships unless specifically asked
+            if rel["type"] == "in" and rel["object"] in ["kitchen", "room", "bedroom", "bathroom"]:
+                continue
+
+            # For "what's on X" questions, we want relationships where X is the object (target)
+            if "on" in question_lower and mentioned_objects:
+                # Look for on_top_of relationships where mentioned object is the target
+                if (rel["type"] == "on_top_of" and rel["object"] in mentioned_objects and
+                    rel["subject"] in objects and rel["object"] in objects):
+                    relevant_relationships.append(rel)
+                # Also look for supports relationships where mentioned object is the subject
+                elif (rel["type"] == "supports" and rel["subject"] in mentioned_objects and
+                      rel["subject"] in objects and rel["object"] in objects):
+                    relevant_relationships.append(rel)
+            else:
+                # General relationship matching
+                if rel["subject"] in mentioned_objects or rel["object"] in mentioned_objects:
+                    # Only include relationships between actual objects (not rooms)
+                    if (rel["subject"] in objects and rel["object"] in objects):
+                        relevant_relationships.append(rel)
 
         if relevant_relationships:
             answer_text = "Found these spatial relationships:\n"
             for rel in relevant_relationships:
-                subj_class = objects[rel["subject"]]["class"]
-                obj_class = objects[rel["object"]]["class"]
+                # Handle cases where subject or object might not be in objects dict (e.g., "kitchen")
+                subj_class = objects.get(rel["subject"], {}).get("class", rel["subject"])
+                obj_class = objects.get(rel["object"], {}).get("class", rel["object"])
                 answer_text += f"• {rel['subject']} ({subj_class}) {rel['type']} {rel['object']} ({obj_class}) [confidence: {rel['confidence']:.2f}]\n"
         else:
             answer_text = "No specific spatial relationships found for the mentioned objects."
@@ -407,7 +438,6 @@ class SpatialQASystem:
         """Answer questions about structural stability."""
 
         stability = context["stability"]
-        support_deps = context["support_dependencies"]
 
         answer_text = "Stability analysis:\n"
 
@@ -443,20 +473,42 @@ class SpatialQASystem:
 
         # Look for removal scenarios
         if "remove" in question.lower():
+            question_lower = question.lower()
+            target_object = None
+
             # Try to identify which object would be removed
             for obj_id, obj_data in objects.items():
-                if obj_id.lower() in question.lower() or obj_data["class"] in question.lower():
-                    # Check what depends on this object
-                    dependents = support_deps.get("dependents", {}).get(obj_id, [])
-                    if dependents:
-                        answer_text += f"If {obj_id} is removed:\n"
-                        answer_text += f"• {len(dependents)} objects would fall due to gravity:\n"
-                        for dep_id in dependents:
-                            dep_class = objects[dep_id]["class"]
-                            answer_text += f"  - {dep_id} ({dep_class})\n"
-                    else:
-                        answer_text += f"If {obj_id} is removed:\n• No other objects would be affected\n"
+                # Check both object ID and class name
+                if (obj_id.lower() in question_lower or
+                    obj_data["class"] in question_lower or
+                    (obj_data["class"] == "table" and "table" in question_lower)):
+                    target_object = obj_id
                     break
+
+            if target_object:
+                # Check what depends on this object (both direct and recursive)
+                direct_dependents = support_deps.get("dependents", {}).get(target_object, [])
+                recursive_dependents = support_deps.get("recursive_dependents", {}).get(target_object, [])
+                supporters = support_deps.get("supporters", {}).get(target_object, [])
+
+                answer_text += f"If {target_object} ({objects[target_object]['class']}) is removed:\n"
+
+                if recursive_dependents:
+                    answer_text += f"• {len(recursive_dependents)} objects would fall due to gravity (including cascading effects):\n"
+                    for dep_id in recursive_dependents:
+                        dep_class = objects.get(dep_id, {}).get("class", dep_id)
+                        is_direct = dep_id in direct_dependents
+                        dependency_type = "directly on" if is_direct else "indirectly via stacking"
+                        answer_text += f"  - {dep_id} ({dep_class}) - {dependency_type} {target_object}\n"
+                else:
+                    answer_text += "• No objects would be affected (no dependencies)\n"
+
+                if supporters:
+                    answer_text += f"• This object is currently supported by: {', '.join(supporters)}\n"
+
+            else:
+                answer_text += "Could not identify which object to remove from the question.\n"
+                answer_text += f"Available objects: {', '.join([f'{oid} ({objects[oid]['class']})' for oid in objects.keys()])}"
 
         return {
             "answer_text": answer_text,
