@@ -16,8 +16,8 @@ class ParsedCommand:
     object_type: str  # "coffee_cup", "book", "lamp", etc.
     object_id: Optional[str] = None  # Generated or existing ID
     target_object: Optional[str] = None  # "table", "chair", etc.
-    spatial_relation: Optional[str] = None  # "on_top_of", "near", "beside", etc.
-    position: Optional[Tuple[float, float, float]] = None
+    spatial_relation: Optional[str] = None  # "on_top_of", "near", "custom"
+    position: Optional[Tuple[float, float, float]] = None  # LLM-calculated position for custom relations
     properties: Dict[str, Any] = None
     confidence: float = 0.0
     quantity: int = 1  # Number of objects to add/modify

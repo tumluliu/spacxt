@@ -51,6 +51,53 @@ class PlacementEngine:
         else:  # "random" or fallback
             return self._place_randomly(object_size, existing_bboxes)
 
+    def validate_and_adjust_position(self, position: Tuple[float, float, float],
+                                   object_size: Tuple[float, float, float],
+                                   object_id: str) -> Tuple[float, float, float]:
+        """
+        Validate and adjust an LLM-calculated position using physics rules.
+
+        Args:
+            position: LLM-calculated position (x, y, z)
+            object_size: (width, depth, height) of the object
+            object_id: ID of the object being placed
+
+        Returns:
+            Validated and adjusted position
+        """
+
+        # Ensure minimum size
+        object_size = self.physics.ensure_minimum_size(object_size)
+
+        # First, validate the position using physics rules (ground level, etc.)
+        validated_position = self.physics.validate_object_position(
+            position=position,
+            size=object_size,
+            allow_stacking=True
+        )
+
+        # Use advanced collision detection to find safe position
+        from .collision_detector import collision_detector
+
+        # Update collision detector with current scene state
+        self._sync_collision_detector(exclude_id=object_id)
+
+        # Try to find a safe position near the validated position
+        safe_position = collision_detector.find_safe_position(
+            object_size=object_size,
+            preferred_position=validated_position,
+            search_radius=0.8,  # Search within 80cm radius
+            max_attempts=15
+        )
+
+        if safe_position:
+            return safe_position
+        else:
+            # If no safe position found, fall back to ground placement
+            # This uses the existing collision avoidance logic
+            existing_bboxes = self._get_existing_bounding_boxes(exclude_id=object_id)
+            return self._place_on_ground(object_size, existing_bboxes, randomness=0.5)
+
     def _place_on_surface(self, object_size: Tuple[float, float, float], target_id: str,
                          existing_bboxes: List[BoundingBox], randomness: float) -> Tuple[float, float, float]:
         """Place object on top of target object's surface."""
@@ -260,3 +307,45 @@ class PlacementEngine:
             return (position[0], position[1], ground_z)
 
         return position
+
+    def _sync_collision_detector(self, exclude_id: Optional[str] = None):
+        """Sync the global collision detector with current scene state."""
+        from .collision_detector import collision_detector
+
+        # Clear existing collision boxes
+        collision_detector.collision_boxes.clear()
+
+        # Add all current objects to collision detector
+        for node_id, node in self.graph.nodes.items():
+            if exclude_id and node_id == exclude_id:
+                continue
+
+            size = self.physics.ensure_minimum_size(node.bbox['xyz'])
+            # Use validated position to ensure proper grounding
+            position = self.physics.validate_object_position(node.pos, size)
+
+            collision_detector.add_object(node_id, position, size)
+
+    def get_collision_report(self) -> str:
+        """Get a detailed collision report for debugging."""
+        from .collision_detector import collision_detector
+
+        self._sync_collision_detector()
+        info = collision_detector.get_collision_info()
+        layout = collision_detector.visualize_2d_layout()
+
+        report = [
+            "=== Collision Detection Report ===",
+            f"Total objects: {info['total_objects']}",
+            f"Collision pairs: {info['collision_count']}",
+        ]
+
+        if info['collision_pairs']:
+            report.append("Colliding objects:")
+            for obj1, obj2 in info['collision_pairs']:
+                report.append(f"  - {obj1} ↔ {obj2}")
+
+        report.append("")
+        report.append(layout)
+
+        return "\n".join(report)

@@ -87,17 +87,15 @@ class PhysicsUtils:
 
     @staticmethod
     def check_collision(bbox1: BoundingBox, bbox2: BoundingBox) -> bool:
-        """Check if two bounding boxes collide (overlap)."""
-        min1, max1 = bbox1.min_point, bbox1.max_point
-        min2, max2 = bbox2.min_point, bbox2.max_point
+        """Check if two bounding boxes collide using the new collision detection system."""
+        from .collision_detector import CollisionBox
 
-        # Check for separation along each axis
-        if (max1[0] <= min2[0] or max2[0] <= min1[0] or
-            max1[1] <= min2[1] or max2[1] <= min1[1] or
-            max1[2] <= min2[2] or max2[2] <= min1[2]):
-            return False
+        # Convert BoundingBox to CollisionBox
+        cbox1 = CollisionBox(bbox1.center, bbox1.size)
+        cbox2 = CollisionBox(bbox2.center, bbox2.size)
 
-        return True
+        # Use the advanced collision detection with safety margin
+        return cbox1.overlaps_3d(cbox2)
 
     @staticmethod
     def distance_3d(pos1: Tuple[float, float, float], pos2: Tuple[float, float, float]) -> float:

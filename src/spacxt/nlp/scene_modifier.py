@@ -11,6 +11,7 @@ from ..core.graph_store import SceneGraph, Node, GraphPatch
 from ..core.orchestrator import Bus
 from ..core.agents import Agent
 from ..physics.placement_engine import PlacementEngine
+from ..physics.support_system import SupportSystem
 from .llm_parser import ParsedCommand
 
 
@@ -53,6 +54,16 @@ class ObjectTemplates:
                 'lom': 'medium',
                 'conf': 0.92,
                 'color': 'ceramic'
+            },
+
+            # Furniture
+            'chair': {
+                'cls': 'chair',
+                'bbox': {'type': 'OBB', 'xyz': [0.5, 0.5, 0.9]},  # Same as bootstrap chair
+                'aff': ['sit'],
+                'lom': 'medium',
+                'conf': 0.92,
+                'color': 'brown'
             },
 
             # Books and media
@@ -158,6 +169,7 @@ class SceneModifier:
         self.agents = agents
         self.templates = ObjectTemplates.get_templates()
         self.placement_engine = PlacementEngine(scene_graph)
+        self.support_system = SupportSystem(scene_graph)
         self.object_counter = {}  # Track object counts for unique IDs
 
     def execute_command(self, command: ParsedCommand) -> Tuple[bool, str]:
@@ -219,13 +231,28 @@ class SceneModifier:
             object_size = template['bbox']['xyz']
             placement_type = self._get_placement_type(command)
 
-            position = self.placement_engine.place_object(
-                object_id=object_id,
-                object_size=object_size,
-                placement_type=placement_type,
-                target_id=command.target_object,
-                randomness=0.3
-            )
+            # Use LLM-calculated position for custom spatial relations
+            if command.spatial_relation == 'custom' and command.position:
+                # LLM provided exact position - use it with physics validation
+                position = self.placement_engine.validate_and_adjust_position(
+                    position=command.position,
+                    object_size=object_size,
+                    object_id=object_id
+                )
+
+                # Log the spatial reasoning
+                spatial_desc = command.properties.get('spatial_description', 'custom placement')
+                self._log_spatial_reasoning(f"LLM calculated position for {object_id}: {spatial_desc}")
+
+            else:
+                # Use physics engine for standard placements
+                position = self.placement_engine.place_object(
+                    object_id=object_id,
+                    object_size=object_size,
+                    placement_type=placement_type,
+                    target_id=command.target_object,
+                    randomness=0.3
+                )
 
             # Create new node (position will be auto-corrected by SceneGraph physics)
             node = Node(
@@ -265,6 +292,9 @@ class SceneModifier:
 
             added_objects.append(object_id)
 
+        # Update support relationships after adding objects
+        self.support_system.analyze_and_update_support_relationships()
+
         # Update object counter
         if command.object_type not in self.object_counter:
             self.object_counter[command.object_type] = 0
@@ -276,13 +306,47 @@ class SceneModifier:
             return True, f"Added {quantity} {command.object_type}s to the scene: {', '.join(added_objects)}"
 
     def _move_object(self, command: ParsedCommand) -> Tuple[bool, str]:
-        """Move an existing object."""
-        # Find object to move (by partial ID match)
-        object_id = self._find_object_by_name(command.object_id)
-        if not object_id:
-            return False, f"Could not find object: {command.object_id}"
+        """Move existing object(s) - supports moving multiple objects of the same type."""
 
-        # Use physics engine for proper positioning
+        # Handle quantity-based moves (e.g., "move the two cups")
+        if command.quantity > 1 and command.object_type:
+            return self._move_multiple_objects(command)
+
+        # Single object move
+        object_id = self._find_object_by_name(command.object_id or command.object_type)
+        if not object_id:
+            return False, f"Could not find object: {command.object_id or command.object_type}"
+
+        return self._move_single_object(object_id, command)
+
+    def _move_multiple_objects(self, command: ParsedCommand) -> Tuple[bool, str]:
+        """Move multiple objects of the same type."""
+        # Find objects of the specified type
+        matching_objects = []
+        for obj_id, node in self.graph.nodes.items():
+            if node.cls == command.object_type or command.object_type in obj_id:
+                matching_objects.append(obj_id)
+
+        if len(matching_objects) < command.quantity:
+            return False, f"Only found {len(matching_objects)} {command.object_type}(s), but you asked to move {command.quantity}"
+
+        # Move the requested number of objects
+        moved_objects = []
+        for i in range(command.quantity):
+            object_id = matching_objects[i]
+            success, _ = self._move_single_object(object_id, command)
+            if success:
+                moved_objects.append(object_id)
+
+        if moved_objects:
+            # Update support relationships after moving objects
+            self.support_system.analyze_and_update_support_relationships()
+            return True, f"Moved {len(moved_objects)} {command.object_type}(s): {', '.join(moved_objects)}"
+        else:
+            return False, f"Failed to move any {command.object_type}s"
+
+    def _move_single_object(self, object_id: str, command: ParsedCommand) -> Tuple[bool, str]:
+        """Move a single object."""
         if object_id not in self.graph.nodes:
             return False, f"Object {object_id} not found in scene"
 
@@ -306,11 +370,24 @@ class SceneModifier:
         return True, f"Moved {object_id} to new position"
 
     def _remove_object(self, command: ParsedCommand) -> Tuple[bool, str]:
-        """Remove an object from the scene."""
+        """Remove an object from the scene with cascade physics for dependent objects."""
         # Find object to remove
         object_id = self._find_object_by_name(command.object_id)
         if not object_id:
             return False, f"Could not find object: {command.object_id}"
+
+        # First, analyze current support relationships
+        self.support_system.analyze_and_update_support_relationships()
+
+        # Handle cascade physics - find objects that will lose support
+        dependent_objects, moved_objects = self.support_system.handle_object_removal(object_id)
+
+        # Apply gravity effects to dependent objects
+        if moved_objects:
+            patch = GraphPatch()
+            for obj_id, new_position in moved_objects:
+                patch.update_nodes[obj_id] = {"pos": new_position}
+            self.graph.apply_patch(patch)
 
         # Remove from agents
         if object_id in self.agents:
@@ -329,7 +406,17 @@ class SceneModifier:
         for key in keys_to_remove:
             del self.graph.relations[key]
 
-        return True, f"Removed {object_id} from the scene"
+        # Build result message
+        result_msg = f"Removed {object_id} from the scene"
+
+        if dependent_objects:
+            fallen_objects = [obj_id for obj_id, _ in moved_objects]
+            if fallen_objects:
+                result_msg += f". {len(fallen_objects)} object(s) fell due to gravity: {', '.join(fallen_objects)}"
+            else:
+                result_msg += f". {len(dependent_objects)} dependent object(s) were affected"
+
+        return True, result_msg
 
     def _get_placement_type(self, command: ParsedCommand) -> str:
         """Convert command spatial relation to placement type."""
@@ -337,10 +424,16 @@ class SceneModifier:
             return 'on_top_of'
         elif command.spatial_relation == 'near':
             return 'near'
+        elif command.spatial_relation == 'custom':
+            return 'custom'  # Will be handled specially with LLM position
         elif command.action == 'move':
             return 'near' if command.target_object else 'ground'
         else:
             return 'ground'
+
+    def _log_spatial_reasoning(self, message: str):
+        """Log spatial reasoning decisions."""
+        print(f"🧠 Spatial Reasoning: {message}")
 
     def validate_scene_physics(self) -> Dict[str, Tuple[float, float, float]]:
         """Validate and correct all object positions using physics engine."""

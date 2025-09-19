@@ -720,7 +720,13 @@ class SceneVisualizer:
         self.chat_history.config(state=tk.NORMAL)
         self.chat_history.delete(1.0, tk.END)
         self.chat_history.config(state=tk.DISABLED)
+
+        # Clear LLM conversation history as well
+        if hasattr(self.command_parser, 'llm_client') and self.command_parser.llm_client:
+            self.command_parser.llm_client.conversation_history.clear()
+
         self._add_chat_message("system", "Chat cleared. Ready for new commands!")
+        self._log_activity("🧹 Chat and conversation context cleared")
 
     def _set_processing_state(self, processing: bool):
         """Update the processing state and UI indicators."""
@@ -773,6 +779,14 @@ class SceneVisualizer:
             # Execute command
             success, message = self.scene_modifier.execute_command(parsed_command)
 
+            # Add to conversation history for context
+            if hasattr(self.command_parser, 'llm_client') and self.command_parser.llm_client:
+                self.command_parser.llm_client.add_to_conversation_history(
+                    command=command_text,
+                    result=parsed_command.__dict__ if parsed_command else {},
+                    success=success
+                )
+
             if success:
                 # Schedule UI updates in main thread
                 self.root.after(0, lambda: self._handle_command_success(message, parsed_command))
@@ -801,6 +815,12 @@ class SceneVisualizer:
 
             # Sync agents from scene modifier (in case new objects were added)
             self.agents.update(self.scene_modifier.agents)
+
+            # Log support system status if objects were added/removed
+            if hasattr(parsed_command, 'action') and parsed_command.action in ['add', 'remove']:
+                support_status = self.scene_modifier.support_system.get_system_status()
+                scene_info = support_status['scene_analysis']
+                self._log_activity(f"📊 Scene: {scene_info['total_objects']} objects, {scene_info['supported_objects']} supported, {scene_info['ground_objects']} on ground")
 
             # Auto-update relationships after scene modification
             self._auto_update_relationships_on_change()
