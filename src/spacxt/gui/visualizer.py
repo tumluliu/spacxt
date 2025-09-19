@@ -19,6 +19,7 @@ from ..core.graph_store import SceneGraph, Node, Relation, GraphPatch
 from ..core.orchestrator import Bus, make_agents, tick
 from ..nlp.llm_parser import LLMCommandParser
 from ..nlp.scene_modifier import SceneModifier
+from ..nlp.spatial_qa import SpatialQASystem
 
 
 class SceneVisualizer:
@@ -43,6 +44,7 @@ class SceneVisualizer:
         # Natural language processing
         self.command_parser = LLMCommandParser()
         self.scene_modifier = SceneModifier(scene_graph, bus, agents)
+        self.spatial_qa = SpatialQASystem(scene_graph, self.scene_modifier.support_system)
 
         # Create UI components
         self._create_widgets()
@@ -160,8 +162,9 @@ class SceneVisualizer:
         self.processing_label.pack(side=tk.RIGHT)
 
         # Initialize chat
-        self._add_chat_message("system", "Welcome! I can help you manipulate the 3D scene using natural language.")
-        self._add_chat_message("system", "Examples: 'put a cup on the table', 'move the chair', 'add a book'")
+        self._add_chat_message("system", "Welcome! I can help you manipulate the 3D scene and answer spatial questions.")
+        self._add_chat_message("system", "Commands: 'put a cup on the table', 'move the chair', 'add a book'")
+        self._add_chat_message("system", "Questions: 'what objects are on the table?', 'what if I remove the table?', 'where is the cup?'")
 
         # Chat processing state
         self.chat_processing = False
@@ -443,7 +446,7 @@ class SceneVisualizer:
         if graph_signature != self.last_graph_signature:
             try:
                 pos = self._calculate_graph_layout(G)
-            except:
+            except Exception:
                 # Fallback if layout calculation fails
                 pos = {node: (i*0.5, (i%3)*0.5) for i, node in enumerate(G.nodes)}
 
@@ -766,6 +769,11 @@ class SceneVisualizer:
     def _process_command(self, command_text: str):
         """Process the command in a background thread."""
         try:
+            # Check if this is a question rather than a command
+            if self._is_question(command_text):
+                self._process_spatial_question(command_text)
+                return
+
             # Build scene context for LLM
             scene_context = {"objects": self.graph.nodes}
 
@@ -796,6 +804,75 @@ class SceneVisualizer:
         except Exception as e:
             error_msg = str(e)
             self.root.after(0, lambda: self._handle_command_result(False, f"An error occurred: {error_msg}"))
+
+    def _is_question(self, text: str) -> bool:
+        """Determine if the input is a question rather than a command."""
+        text_lower = text.lower().strip()
+
+        # Question words
+        question_words = ["what", "where", "when", "why", "how", "which", "who", "can", "is", "are", "does", "do", "will", "would", "could", "should"]
+
+        # Starts with question word
+        if any(text_lower.startswith(word) for word in question_words):
+            return True
+
+        # Ends with question mark
+        if text.strip().endswith("?"):
+            return True
+
+        # Contains question patterns
+        question_patterns = [
+            "what if", "tell me", "explain", "describe", "show me", "find", "locate",
+            "relationship", "support", "stable", "accessible", "reachable"
+        ]
+        if any(pattern in text_lower for pattern in question_patterns):
+            return True
+
+        return False
+
+    def _process_spatial_question(self, question: str):
+        """Process a spatial question using the Q&A system."""
+        try:
+            # Get answer from spatial Q&A system
+            qa_result = self.spatial_qa.answer_spatial_question(question)
+
+            # Format the response
+            answer_text = qa_result["answer"]["answer_text"]
+            confidence = qa_result["confidence"]
+            question_type = qa_result["question_type"]
+
+            # Add confidence and type info
+            response_header = f"**{question_type.title()} Question** (confidence: {confidence:.1%})\n\n"
+            full_response = response_header + answer_text
+
+            # Schedule UI update in main thread
+            self.root.after(0, lambda: self._handle_qa_result(question, full_response, qa_result))
+
+        except Exception as e:
+            error_msg = f"Error processing question: {str(e)}"
+            self.root.after(0, lambda: self._handle_command_result(False, error_msg))
+
+    def _handle_qa_result(self, question: str, answer: str, qa_result: Dict[str, Any]):
+        """Handle Q&A result in the main thread."""
+        try:
+            # Add question and answer to chat
+            self._add_chat_message("user", question)
+            self._add_chat_message("assistant", answer)
+
+            # Log the Q&A activity
+            question_type = qa_result["question_type"]
+            confidence = qa_result["confidence"]
+            self._log_activity(f"🤔 Answered {question_type} question (confidence: {confidence:.1%})")
+
+            # If it's a complex question, show additional context
+            if question_type in ["complex", "what_if"] and qa_result.get("spatial_context_used"):
+                context_info = qa_result["spatial_context_used"]
+                self._log_activity(f"📊 Used spatial context: {context_info['total_objects']} objects, {len(context_info['relationship_types'])} relation types")
+
+        except Exception as e:
+            self._add_chat_message("error", f"Error displaying Q&A result: {str(e)}")
+        finally:
+            self._set_processing_state(False)
 
     def _handle_command_success(self, message: str, parsed_command):
         """Handle successful command execution in main thread."""

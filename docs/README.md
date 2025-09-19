@@ -7,6 +7,7 @@ Welcome to the SpacXT documentation! SpacXT is a **Spatial Context Engine with A
 - **[Overview](overview.md)** - What is SpacXT and why it matters
 - **[Architecture](architecture.md)** - System design and core concepts
 - **[Getting Started](getting-started.md)** - Installation and first steps
+- **[Spatial Context & Q&A](spatial-context-qa.md)** - 🆕 Comprehensive spatial reasoning and question-answering
 - **[API Reference](api-reference.md)** - Detailed API documentation
 - **[Examples](examples.md)** - Code examples and use cases
 - **[Applications](applications.md)** - Real-world applications and future possibilities

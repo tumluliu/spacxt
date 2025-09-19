@@ -45,6 +45,9 @@ For advanced natural language processing:
 cd examples
 poetry run python demo_gui.py
 
+# Try the spatial Q&A demonstration
+poetry run python spatial_qa_demo.py
+
 # Or with direct Python (requires matplotlib, numpy)
 cd examples
 python demo_gui.py
@@ -67,10 +70,10 @@ python demo.py
 - 🎮 **Interactive Controls**: Start/stop simulation, move objects, reset scene
 - 📊 **Live Relationship Panel**: Monitor spatial relations as they evolve
 - 🔄 **Dynamic Updates**: See the scene change as agents reason about space
-- 🧠 **LLM-Powered Natural Language**: Command the scene using natural language!
-  - "put a coffee cup on the table"
-  - "add a modern laptop to the workspace"
-  - "move the chair closer to the stove"
+- 🧠 **LLM-Powered Natural Language**: Command the scene and ask spatial questions!
+  - **Commands**: "put a coffee cup on the table", "move the chair closer to the stove"
+  - **Questions**: "what objects are on the table?", "what if I remove the table?"
+  - **Spatial Reasoning**: "where is the safest place to put a hot pan?"
 
 **Command Line Demo:**
 1. Load `bootstrap.json`
@@ -97,6 +100,7 @@ spacxt/
 ├── examples/                     # Example usage
 │   ├── demo_gui.py               # Interactive 3D GUI demo
 │   ├── demo.py                   # Command line demo
+│   ├── spatial_qa_demo.py        # 🆕 Spatial context & Q&A demonstration
 │   └── bootstrap.json            # Initial 3DSG
 └── pyproject.toml               # Project configuration
 ```
