@@ -1,56 +1,54 @@
-// Main SpacXT Web Application Component
+// SpacXT - Professional Spatial Context Intelligence Platform
+// Complete redesign with elegant layout and comprehensive spatial context visualization
 
 import React, { useState, useCallback, useEffect } from 'react';
 import {
+  Box,
+  Grid,
   AppBar,
   Toolbar,
   Typography,
-  Box,
-  Drawer,
+  IconButton,
+  TextField,
+  Button,
+  Paper,
+  Alert,
+  Chip,
+  CircularProgress,
   List,
   ListItem,
   ListItemText,
-  ListItemIcon,
   Divider,
-  Paper,
-  TextField,
-  Button,
-  IconButton,
-  Chip,
-  Alert,
-  CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  FormControlLabel,
-  Switch,
-  Grid,
   Card,
   CardContent,
-  CardHeader
+  CardHeader,
+  Tabs,
+  Tab,
+  Badge,
+  Avatar,
+  InputAdornment,
 } from '@mui/material';
 import {
-  Menu as MenuIcon,
-  Send as SendIcon,
-  QuestionAnswer as QuestionIcon,
-  ViewIn3D as ViewIcon,
-  Psychology as BrainIcon,
   Settings as SettingsIcon,
+  Psychology as BrainIcon,
+  Send as SendIcon,
+  Chat as ChatIcon,
+  AccountTree as GraphIcon,
+  ViewInAr as SceneIcon,
+  Timeline as ActivityIcon,
+  Hub as RelationsIcon,
   Refresh as RefreshIcon,
-  PlayArrow as PlayIcon,
-  Add as AddIcon,
-  Delete as DeleteIcon
+  AutoAwesome as SparkleIcon,
 } from '@mui/icons-material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 
 import Scene3D from './Scene3D';
-import GraphView3D from './GraphView3D';
+import GraphView2D from './GraphView2D';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { SpatialAPI } from '../services/api';
 import { SpatialObject, CommandResult, QuestionResult } from '../types/spatial';
 
-// Premium dark theme with better colors and typography
+// Premium dark theme with sophisticated styling
 const theme = createTheme({
   palette: {
     mode: 'dark',
@@ -73,35 +71,17 @@ const theme = createTheme({
       secondary: '#cbd5e1',
     },
     divider: 'rgba(148, 163, 184, 0.12)',
-    success: {
-      main: '#10b981',
-    },
-    warning: {
-      main: '#f59e0b',
-    },
-    error: {
-      main: '#ef4444',
-    },
+    success: { main: '#10b981' },
+    warning: { main: '#f59e0b' },
+    error: { main: '#ef4444' },
   },
   typography: {
     fontFamily: '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    h4: {
-      fontWeight: 700,
-      letterSpacing: '-0.02em',
-    },
-    h6: {
-      fontWeight: 600,
-      letterSpacing: '-0.01em',
-    },
-    button: {
-      fontWeight: 500,
-      textTransform: 'none',
-      letterSpacing: '0.01em',
-    },
+    h4: { fontWeight: 700, letterSpacing: '-0.02em' },
+    h6: { fontWeight: 600, letterSpacing: '-0.01em' },
+    button: { fontWeight: 500, textTransform: 'none' },
   },
-  shape: {
-    borderRadius: 12,
-  },
+  shape: { borderRadius: 12 },
   components: {
     MuiButton: {
       styleOverrides: {
@@ -109,22 +89,11 @@ const theme = createTheme({
           borderRadius: 8,
           padding: '10px 20px',
           boxShadow: 'none',
-          '&:hover': {
-            boxShadow: '0 4px 12px rgba(0, 229, 255, 0.15)',
-          },
+          '&:hover': { boxShadow: '0 4px 12px rgba(0, 229, 255, 0.15)' },
         },
         contained: {
           background: 'linear-gradient(135deg, #00e5ff 0%, #0091ea 100%)',
-          '&:hover': {
-            background: 'linear-gradient(135deg, #00b2cc 0%, #0277bd 100%)',
-          },
-        },
-        outlined: {
-          borderColor: 'rgba(0, 229, 255, 0.3)',
-          '&:hover': {
-            borderColor: '#00e5ff',
-            backgroundColor: 'rgba(0, 229, 255, 0.08)',
-          },
+          '&:hover': { background: 'linear-gradient(135deg, #00b2cc 0%, #0277bd 100%)' },
         },
       },
     },
@@ -144,12 +113,8 @@ const theme = createTheme({
           '& .MuiOutlinedInput-root': {
             borderRadius: 8,
             backgroundColor: 'rgba(30, 41, 59, 0.5)',
-            '&:hover .MuiOutlinedInput-notchedOutline': {
-              borderColor: 'rgba(0, 229, 255, 0.5)',
-            },
-            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-              borderColor: '#00e5ff',
-            },
+            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0, 229, 255, 0.5)' },
+            '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#00e5ff' },
           },
         },
       },
@@ -157,658 +122,481 @@ const theme = createTheme({
   },
 });
 
-const DRAWER_WIDTH = 420;
-
 interface ChatMessage {
   id: string;
-  type: 'command' | 'question' | 'result' | 'error';
+  type: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
   data?: any;
 }
 
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
+  <div hidden={value !== index} style={{ height: '100%' }}>
+    {value === index && <Box sx={{ height: '100%' }}>{children}</Box>}
+  </div>
+);
+
 const App: React.FC = () => {
-  // State management
-  const [drawerOpen, setDrawerOpen] = useState(true);
-  const [selectedObject, setSelectedObject] = useState<string>('');
-  const [commandInput, setCommandInput] = useState('');
-  const [questionInput, setQuestionInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  // Core state
+  const [sceneState, setSceneState] = useState<{ objects: Record<string, SpatialObject>; relationships: any[] } | null>(null);
+  const [selectedObject, setSelectedObject] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
-  const [showRelationships, setShowRelationships] = useState(true);
-  const [showGrid, setShowGrid] = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [currentView, setCurrentView] = useState<'3d' | 'graph' | 'split'>('split');
+  const [error, setError] = useState<string | null>(null);
+
+  // UI state
+  const [activeTab, setActiveTab] = useState(0);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      id: '1',
+      type: 'system',
+      content: '🚀 Welcome to SpacXT! I can help you understand and manipulate spatial contexts using natural language. Try commands like "add a cup on the table" or ask questions like "what objects are near the stove?"',
+      timestamp: new Date(),
+    }
+  ]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [agentActivity, setAgentActivity] = useState<string[]>([]);
+  const [spatialRelations, setSpatialRelations] = useState<any[]>([]);
 
   // WebSocket connection
-  const { sceneState, connectionStatus, error, sendCommand } = useWebSocket({
-    sessionId: 'default',
-    autoConnect: true
+  const { connectionStatus } = useWebSocket('ws://localhost:8000/ws/default', {
+    onMessage: (data) => {
+      if (data.type === 'scene_update') {
+        setSceneState(data.data);
+        setSpatialRelations(data.data.relationships || []);
+      }
+    },
   });
 
-  // Add message to chat
-  const addChatMessage = useCallback((message: Omit<ChatMessage, 'id' | 'timestamp'>) => {
-    setChatMessages(prev => [...prev, {
-      ...message,
+  // Load initial scene
+  useEffect(() => {
+    const loadScene = async () => {
+      try {
+        const scene = await SpatialAPI.getScene();
+        setSceneState(scene);
+        setSpatialRelations(scene.relationships || []);
+      } catch (err) {
+        setError('Failed to load scene');
+        console.error(err);
+      }
+    };
+    loadScene();
+  }, []);
+
+  // Handle message submission
+  const handleSendMessage = useCallback(async () => {
+    if (!inputMessage.trim() || loading) return;
+
+    const userMessage: ChatMessage = {
       id: Date.now().toString(),
-      timestamp: new Date()
-    }]);
-  }, []);
+      type: 'user',
+      content: inputMessage,
+      timestamp: new Date(),
+    };
 
-  // Execute natural language command
-  const executeCommand = useCallback(async (command: string) => {
-    if (!command.trim()) return;
-
+    setChatMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
     setLoading(true);
-    addChatMessage({ type: 'command', content: command });
 
     try {
-      const result: CommandResult = await SpatialAPI.executeCommand({ command });
+      // Determine if it's a question or command
+      const isQuestion = inputMessage.includes('?') ||
+        inputMessage.toLowerCase().startsWith('what') ||
+        inputMessage.toLowerCase().startsWith('where') ||
+        inputMessage.toLowerCase().startsWith('how') ||
+        inputMessage.toLowerCase().startsWith('which');
 
-      if (result.success) {
-        addChatMessage({
-          type: 'result',
-          content: result.result || 'Command executed successfully',
-          data: result
-        });
+      let response: CommandResult | QuestionResult;
+
+      if (isQuestion) {
+        response = await SpatialAPI.askQuestion({ question: inputMessage });
+        setAgentActivity(prev => [...prev, `🤔 Processed question: "${inputMessage}"`]);
       } else {
-        addChatMessage({
-          type: 'error',
-          content: result.message || 'Command failed'
-        });
+        response = await SpatialAPI.executeCommand({ command: inputMessage });
+        setAgentActivity(prev => [...prev, `🔧 Executed command: "${inputMessage}"`]);
       }
-    } catch (error) {
-      console.error('Command execution error:', error);
-      addChatMessage({
-        type: 'error',
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      });
+
+      const assistantMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'assistant',
+        content: response.message,
+        timestamp: new Date(),
+        data: response,
+      };
+
+      setChatMessages(prev => [...prev, assistantMessage]);
+
+      // Trigger scene refresh
+      const updatedScene = await SpatialAPI.getScene();
+      setSceneState(updatedScene);
+      setSpatialRelations(updatedScene.relationships || []);
+
+    } catch (err: any) {
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 2).toString(),
+        type: 'system',
+        content: `❌ Error: ${err.message || 'Something went wrong'}`,
+        timestamp: new Date(),
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
     } finally {
       setLoading(false);
     }
-  }, [addChatMessage]);
+  }, [inputMessage, loading]);
 
-  // Ask spatial question
-  const askQuestion = useCallback(async (question: string) => {
-    if (!question.trim()) return;
+  const handleKeyPress = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleSendMessage();
+    }
+  };
 
-    setLoading(true);
-    addChatMessage({ type: 'question', content: question });
-
+  const runSimulation = async () => {
     try {
-      const result: QuestionResult = await SpatialAPI.askQuestion({ question });
-
-      if (result.success) {
-        addChatMessage({
-          type: 'result',
-          content: result.answer,
-          data: result
-        });
-      } else {
-        addChatMessage({
-          type: 'error',
-          content: 'Failed to get answer'
-        });
-      }
-    } catch (error) {
-      console.error('Question processing error:', error);
-      addChatMessage({
-        type: 'error',
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      });
-    } finally {
-      setLoading(false);
+      await SpatialAPI.runSimulation();
+      setAgentActivity(prev => [...prev, `🤖 Agents negotiating spatial relationships...`]);
+    } catch (err) {
+      console.error('Simulation failed:', err);
     }
-  }, [addChatMessage]);
-
-  // Handle command input
-  const handleCommandSubmit = useCallback(() => {
-    if (commandInput.trim()) {
-      executeCommand(commandInput);
-      setCommandInput('');
-    }
-  }, [commandInput, executeCommand]);
-
-  // Handle question input
-  const handleQuestionSubmit = useCallback(() => {
-    if (questionInput.trim()) {
-      askQuestion(questionInput);
-      setQuestionInput('');
-    }
-  }, [questionInput, askQuestion]);
-
-  // Handle object selection
-  const handleObjectClick = useCallback((objectId: string) => {
-    setSelectedObject(objectId === selectedObject ? '' : objectId);
-  }, [selectedObject]);
-
-  // Run simulation step
-  const runSimulation = useCallback(async () => {
-    try {
-      await SpatialAPI.runSimulationStep();
-    } catch (error) {
-      console.error('Simulation error:', error);
-    }
-  }, []);
-
-  // Quick command buttons
-  const quickCommands = [
-    'add a cup on the table',
-    'add a book on the chair',
-    'move the cup to the stove',
-    'What objects are on the table?',
-    'What if I remove the table?'
-  ];
+  };
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        {/* App Bar */}
+      <Box sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        background: 'radial-gradient(ellipse at top, rgba(0, 229, 255, 0.05) 0%, rgba(10, 14, 26, 1) 50%)',
+      }}>
+        {/* Header */}
         <AppBar
-          position="fixed"
+          position="static"
           sx={{
-            zIndex: theme.zIndex.drawer + 1,
             background: 'rgba(10, 14, 26, 0.95)',
             backdropFilter: 'blur(20px)',
             borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
           }}
         >
-          <Toolbar sx={{ px: 3, py: 1 }}>
-            <IconButton
-              color="inherit"
-              edge="start"
-              onClick={() => setDrawerOpen(!drawerOpen)}
-              sx={{
-                mr: 3,
-                p: 1.5,
-                borderRadius: 2,
-                '&:hover': {
-                  backgroundColor: 'rgba(0, 229, 255, 0.1)',
-                },
-              }}
-            >
-              <MenuIcon />
-            </IconButton>
-
+          <Toolbar sx={{ px: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mr: 3 }}>
-              <Box
+              <Avatar
                 sx={{
                   width: 40,
                   height: 40,
-                  borderRadius: 2,
                   background: 'linear-gradient(135deg, #00e5ff 0%, #0091ea 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
                   mr: 2,
                   boxShadow: '0 4px 12px rgba(0, 229, 255, 0.3)',
                 }}
               >
-                <BrainIcon sx={{ color: 'white', fontSize: 24 }} />
-              </Box>
+                <BrainIcon />
+              </Avatar>
               <Box>
-                <Typography
-                  variant="h6"
-                  component="div"
-                  sx={{
-                    fontWeight: 700,
-                    background: 'linear-gradient(135deg, #00e5ff 0%, #ffffff 100%)',
-                    backgroundClip: 'text',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    lineHeight: 1.2,
-                  }}
-                >
+                <Typography variant="h6" sx={{
+                  fontWeight: 700,
+                  background: 'linear-gradient(135deg, #00e5ff 0%, #ffffff 100%)',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}>
                   SpacXT
                 </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: theme.palette.text.secondary,
-                    fontWeight: 500,
-                    letterSpacing: '0.05em',
-                  }}
-                >
-                  Spatial Intelligence
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                  Spatial Intelligence Platform
                 </Typography>
               </Box>
             </Box>
 
             <Box sx={{ flexGrow: 1 }} />
 
-            {/* Connection status */}
-            <Chip
-              label={connectionStatus}
+            <Badge
               color={connectionStatus === 'connected' ? 'success' : 'error'}
-              size="small"
-              sx={{
-                mr: 2,
-                borderRadius: 2,
-                fontWeight: 600,
-                fontSize: '0.75rem',
-                height: 28,
-                '& .MuiChip-label': {
-                  px: 1.5,
-                },
-              }}
-            />
-
-            <IconButton
-              color="inherit"
-              onClick={() => setSettingsOpen(true)}
-              sx={{
-                p: 1.5,
-                borderRadius: 2,
-                '&:hover': {
-                  backgroundColor: 'rgba(0, 229, 255, 0.1)',
-                },
-              }}
+              variant="dot"
+              sx={{ mr: 2 }}
             >
+              <Chip
+                label={connectionStatus}
+                size="small"
+                variant="outlined"
+                sx={{ textTransform: 'capitalize' }}
+              />
+            </Badge>
+
+            <IconButton color="inherit">
               <SettingsIcon />
             </IconButton>
           </Toolbar>
         </AppBar>
 
-        {/* Side Drawer */}
-        <Drawer
-          variant="persistent"
-          anchor="left"
-          open={drawerOpen}
-          sx={{
-            width: DRAWER_WIDTH,
-            flexShrink: 0,
-            '& .MuiDrawer-paper': {
-              width: DRAWER_WIDTH,
-              boxSizing: 'border-box',
-              background: 'rgba(10, 14, 26, 0.98)',
-              backdropFilter: 'blur(20px)',
-              borderRight: '1px solid rgba(148, 163, 184, 0.1)',
-            },
-          }}
-        >
-          <Toolbar />
-          <Box sx={{ overflow: 'auto', p: 3 }}>
-
-            {/* Natural Language Commands */}
-            <Paper sx={{ p: 3, mb: 3, borderRadius: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5 }}>
-                <Box
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 2,
-                    background: 'linear-gradient(135deg, #00e5ff 0%, #0091ea 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    mr: 2,
-                  }}
-                >
-                  <SendIcon sx={{ color: 'white', fontSize: 18 }} />
-                </Box>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Natural Language Commands
-                </Typography>
-              </Box>
-              <TextField
-                fullWidth
-                variant="outlined"
-                placeholder="e.g., add a cup on the table"
-                value={commandInput}
-                onChange={(e) => setCommandInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleCommandSubmit()}
-                disabled={loading}
-                sx={{
-                  mb: 2.5,
-                  '& .MuiOutlinedInput-input': {
-                    py: 1.5,
-                  },
-                }}
-              />
-              <Button
-                fullWidth
-                variant="contained"
-                onClick={handleCommandSubmit}
-                disabled={loading || !commandInput.trim()}
-                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
-                sx={{
-                  py: 1.5,
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                }}
-              >
-                Execute Command
-              </Button>
-            </Paper>
-
-            {/* Spatial Questions */}
-            <Paper sx={{ p: 3, mb: 3, borderRadius: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5 }}>
-                <Box
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 2,
-                    background: 'linear-gradient(135deg, #ff6b35 0%, #f59e0b 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    mr: 2,
-                  }}
-                >
-                  <QuestionIcon sx={{ color: 'white', fontSize: 18 }} />
-                </Box>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Spatial Questions
-                </Typography>
-              </Box>
-              <TextField
-                fullWidth
-                variant="outlined"
-                placeholder="e.g., What objects are on the table?"
-                value={questionInput}
-                onChange={(e) => setQuestionInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleQuestionSubmit()}
-                disabled={loading}
-                sx={{
-                  mb: 2.5,
-                  '& .MuiOutlinedInput-input': {
-                    py: 1.5,
-                  },
-                }}
-              />
-              <Button
-                fullWidth
-                variant="outlined"
-                onClick={handleQuestionSubmit}
-                disabled={loading || !questionInput.trim()}
-                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <QuestionIcon />}
-                sx={{
-                  py: 1.5,
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  borderColor: 'rgba(255, 107, 53, 0.3)',
-                  color: '#ff6b35',
-                  '&:hover': {
-                    borderColor: '#ff6b35',
-                    backgroundColor: 'rgba(255, 107, 53, 0.08)',
-                  },
-                }}
-              >
-                Ask Question
-              </Button>
-            </Paper>
-
-            {/* Quick Actions */}
-            <Paper sx={{ p: 3, mb: 3, borderRadius: 3 }}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2.5 }}>
-                Quick Actions
-              </Typography>
-              {quickCommands.map((cmd, index) => (
-                <Button
-                  key={index}
-                  fullWidth
-                  variant="text"
-                  onClick={() => cmd.includes('?') ? askQuestion(cmd) : executeCommand(cmd)}
-                  disabled={loading}
-                  sx={{
-                    mb: 1.5,
-                    textTransform: 'none',
-                    justifyContent: 'flex-start',
-                    py: 1.5,
-                    px: 2,
-                    borderRadius: 2,
-                    fontSize: '0.9rem',
-                    color: theme.palette.text.secondary,
-                    '&:hover': {
-                      backgroundColor: 'rgba(0, 229, 255, 0.08)',
-                      color: '#00e5ff',
-                    },
-                  }}
-                >
-                  {cmd}
-                </Button>
-              ))}
-            </Paper>
-
-            {/* Scene Controls */}
-            <Paper sx={{ p: 3, mb: 3, borderRadius: 3 }}>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2.5 }}>
-                Scene Controls
-              </Typography>
-
-              {/* View Mode Selection */}
-              <Typography variant="body2" sx={{ mb: 2, color: theme.palette.text.secondary, fontWeight: 500 }}>
-                View Mode:
-              </Typography>
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, mb: 3 }}>
-                <Button
-                  size="small"
-                  variant={currentView === '3d' ? 'contained' : 'outlined'}
-                  onClick={() => setCurrentView('3d')}
-                  sx={{
-                    py: 1.2,
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                  }}
-                >
-                  3D Scene
-                </Button>
-                <Button
-                  size="small"
-                  variant={currentView === 'graph' ? 'contained' : 'outlined'}
-                  onClick={() => setCurrentView('graph')}
-                  sx={{
-                    py: 1.2,
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                  }}
-                >
-                  Graph
-                </Button>
-                <Button
-                  size="small"
-                  variant={currentView === 'split' ? 'contained' : 'outlined'}
-                  onClick={() => setCurrentView('split')}
-                  sx={{
-                    py: 1.2,
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                  }}
-                >
-                  Split
-                </Button>
-              </Box>
-
-              <Button
-                fullWidth
-                variant="outlined"
-                onClick={runSimulation}
-                startIcon={<PlayIcon />}
-                sx={{
-                  py: 1.5,
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                }}
-              >
-                Run Simulation Step
-              </Button>
-            </Paper>
-
-            {/* Selected Object Info */}
-            {selectedObject && sceneState?.objects[selectedObject] && (
-              <Paper sx={{ p: 3, mb: 3, borderRadius: 3, border: '2px solid rgba(0, 229, 255, 0.3)' }}>
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: '#00e5ff', mb: 2.5 }}>
-                  Selected Object
-                </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                      ID
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {selectedObject}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                      Type
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 500, textTransform: 'capitalize' }}>
-                      {sceneState.objects[selectedObject].type}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                      Position
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 500, fontFamily: 'monospace' }}>
-                      [{sceneState.objects[selectedObject].position.map(p => p.toFixed(2)).join(', ')}]
-                    </Typography>
-                  </Box>
-                </Box>
-              </Paper>
-            )}
-
-          </Box>
-        </Drawer>
-
         {/* Main Content */}
-        <Box
-          component="main"
-          sx={{
-            flexGrow: 1,
-            transition: theme.transitions.create('margin', {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.leavingScreen,
-            }),
-            marginLeft: drawerOpen ? 0 : `-${DRAWER_WIDTH}px`,
-            background: 'radial-gradient(ellipse at top, rgba(0, 229, 255, 0.05) 0%, rgba(10, 14, 26, 1) 50%)',
-            position: 'relative',
-          }}
-        >
-          <Toolbar />
+        <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          <Grid container sx={{ height: '100%' }}>
+            {/* Left Panel - Chat Interface */}
+            <Grid item xs={12} md={4} sx={{
+              borderRight: '1px solid rgba(148, 163, 184, 0.1)',
+              display: 'flex',
+              flexDirection: 'column',
+            }}>
+              <Paper sx={{
+                m: 2,
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                background: 'rgba(15, 23, 42, 0.98)',
+              }}>
+                {/* Chat Header */}
+                <Box sx={{
+                  p: 2,
+                  borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                }}>
+                  <ChatIcon sx={{ color: 'primary.main' }} />
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Spatial Assistant
+                  </Typography>
+                  <SparkleIcon sx={{ color: 'secondary.main', fontSize: 20 }} />
+                </Box>
 
-          {error && (
-            <Alert
-              severity="error"
-              sx={{
-                m: 3,
-                borderRadius: 3,
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.2)',
-                '& .MuiAlert-icon': {
-                  color: '#ef4444',
-                },
-              }}
-            >
-              {error}
-            </Alert>
-          )}
-
-          {/* Main View Area */}
-          <Box sx={{ height: 'calc(100vh - 64px)', display: 'flex' }}>
-            {sceneState ? (
-              <>
-                {/* 3D Scene View */}
-                {(currentView === '3d' || currentView === 'split') && (
-                  <Box sx={{
-                    flex: currentView === 'split' ? 1 : '1 1 100%',
-                    height: '100%',
-                    borderRight: currentView === 'split' ? '1px solid #333' : 'none'
-                  }}>
-                    <Scene3D
-                      objects={sceneState.objects}
-                      relationships={sceneState.relationships}
-                      selectedObject={selectedObject}
-                      onObjectClick={handleObjectClick}
-                      showRelationships={showRelationships}
-                      showGrid={showGrid}
-                    />
-                  </Box>
-                )}
-
-                {/* Graph View */}
-                {(currentView === 'graph' || currentView === 'split') && (
-                  <Box sx={{
-                    flex: currentView === 'split' ? 1 : '1 1 100%',
-                    height: '100%',
-                    position: 'relative'
-                  }}>
-                    <GraphView3D
-                      objects={sceneState.objects}
-                      relationships={sceneState.relationships}
-                      selectedObject={selectedObject}
-                      onObjectClick={handleObjectClick}
-                    />
-
-                    {/* Graph View Label */}
+                {/* Chat Messages */}
+                <Box sx={{
+                  flex: 1,
+                  overflow: 'auto',
+                  p: 2,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                }}>
+                  {chatMessages.map((message) => (
                     <Box
+                      key={message.id}
                       sx={{
-                        position: 'absolute',
-                        top: 16,
-                        left: 16,
-                        background: 'rgba(0,0,0,0.7)',
-                        color: 'white',
-                        padding: '8px 12px',
-                        borderRadius: '4px',
-                        fontSize: '14px',
-                        fontWeight: 'bold',
-                        pointerEvents: 'none'
+                        display: 'flex',
+                        justifyContent: message.type === 'user' ? 'flex-end' : 'flex-start',
                       }}
                     >
-                      🔗 Spatial Relationship Graph
+                      <Paper
+                        sx={{
+                          p: 2,
+                          maxWidth: '80%',
+                          background: message.type === 'user'
+                            ? 'linear-gradient(135deg, #00e5ff 0%, #0091ea 100%)'
+                            : message.type === 'system'
+                            ? 'rgba(59, 130, 246, 0.1)'
+                            : 'rgba(30, 41, 59, 0.8)',
+                          border: message.type === 'system' ? '1px solid rgba(59, 130, 246, 0.2)' : 'none',
+                        }}
+                      >
+                        <Typography variant="body2" sx={{
+                          color: message.type === 'user' ? 'white' : 'text.primary',
+                          whiteSpace: 'pre-wrap',
+                        }}>
+                          {message.content}
+                        </Typography>
+                        <Typography variant="caption" sx={{
+                          color: message.type === 'user' ? 'rgba(255,255,255,0.7)' : 'text.secondary',
+                          mt: 1,
+                          display: 'block',
+                        }}>
+                          {message.timestamp.toLocaleTimeString()}
+                        </Typography>
+                      </Paper>
                     </Box>
-                  </Box>
-                )}
-              </>
-            ) : (
-              <Box
-                sx={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  height: '100%',
-                  width: '100%'
-                }}
-              >
-                <CircularProgress size={60} />
-                <Typography variant="h6" sx={{ ml: 2 }}>
-                  Loading spatial context...
-                </Typography>
-              </Box>
-            )}
-          </Box>
+                  ))}
+                  {loading && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <CircularProgress size={16} />
+                      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                        Processing...
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+
+                {/* Chat Input */}
+                <Box sx={{ p: 2, borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                  <TextField
+                    fullWidth
+                    multiline
+                    maxRows={3}
+                    placeholder="Ask a question or give a command..."
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    disabled={loading}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            onClick={handleSendMessage}
+                            disabled={loading || !inputMessage.trim()}
+                            sx={{ color: 'primary.main' }}
+                          >
+                            <SendIcon />
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Box>
+              </Paper>
+            </Grid>
+
+            {/* Right Panel - Visualization */}
+            <Grid item xs={12} md={8} sx={{
+              display: 'flex',
+              flexDirection: 'column',
+            }}>
+              {/* Visualization Tabs */}
+              <Paper sx={{ m: 2, mb: 1 }}>
+                <Tabs
+                  value={activeTab}
+                  onChange={(_, newValue) => setActiveTab(newValue)}
+                  sx={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}
+                >
+                  <Tab
+                    icon={<SceneIcon />}
+                    label="3D Scene"
+                    iconPosition="start"
+                  />
+                  <Tab
+                    icon={<GraphIcon />}
+                    label="Relationship Graph"
+                    iconPosition="start"
+                  />
+                </Tabs>
+              </Paper>
+
+              {/* Visualization Content */}
+              <Paper sx={{
+                m: 2,
+                mt: 0,
+                flex: 1,
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                // Account for the bottom panel height (approximately 180px)
+                maxHeight: 'calc(100vh - 280px)',
+              }}>
+                <TabPanel value={activeTab} index={0}>
+                  {sceneState && (
+                    <Scene3D
+                      objects={Object.values(sceneState.objects)}
+                      relationships={sceneState.relationships}
+                      selectedObject={selectedObject}
+                      onObjectClick={setSelectedObject}
+                    />
+                  )}
+                </TabPanel>
+                <TabPanel value={activeTab} index={1}>
+                  {sceneState && (
+                    <GraphView2D
+                      objects={Object.values(sceneState.objects)}
+                      relationships={sceneState.relationships}
+                      selectedObject={selectedObject}
+                      onObjectClick={setSelectedObject}
+                    />
+                  )}
+                </TabPanel>
+              </Paper>
+            </Grid>
+          </Grid>
         </Box>
 
-        {/* Settings Dialog */}
-        <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)}>
-          <DialogTitle>Display Settings</DialogTitle>
-          <DialogContent>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={showRelationships}
-                  onChange={(e) => setShowRelationships(e.target.checked)}
+        {/* Bottom Panel - Spatial Context Information */}
+        <Paper sx={{
+          m: 2,
+          mt: 0,
+          background: 'rgba(15, 23, 42, 0.98)',
+          minHeight: 160,
+          maxHeight: 180,
+        }}>
+          <Grid container sx={{ height: '100%' }}>
+            {/* Spatial Relations */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ background: 'transparent', boxShadow: 'none', height: '100%' }}>
+                <CardHeader
+                  avatar={<RelationsIcon sx={{ color: 'secondary.main' }} />}
+                  title="Spatial Relations"
+                  titleTypographyProps={{ variant: 'subtitle1', fontWeight: 600 }}
+                  action={
+                    <IconButton size="small" onClick={runSimulation}>
+                      <RefreshIcon />
+                    </IconButton>
+                  }
+                  sx={{ pb: 1 }}
                 />
-              }
-              label="Show Relationships"
-            />
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={showGrid}
-                  onChange={(e) => setShowGrid(e.target.checked)}
+                <CardContent sx={{ pt: 0, pb: 2, maxHeight: 100, overflow: 'auto' }}>
+                  {spatialRelations.filter(r => r.type !== 'in').length > 0 ? (
+                    <List dense sx={{ py: 0 }}>
+                      {spatialRelations.filter(r => r.type !== 'in').slice(0, 3).map((rel, idx) => (
+                        <ListItem key={idx} sx={{ py: 0.25, px: 0 }}>
+                          <ListItemText
+                            primary={`${rel.from} ${rel.type.replace(/_/g, ' ')} ${rel.to}`}
+                            secondary={`Confidence: ${(rel.confidence * 100).toFixed(1)}%`}
+                            primaryTypographyProps={{ variant: 'body2', fontSize: '0.85rem' }}
+                            secondaryTypographyProps={{ variant: 'caption', fontSize: '0.75rem' }}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                      No spatial relations detected
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Agent Activity */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ background: 'transparent', boxShadow: 'none', height: '100%' }}>
+                <CardHeader
+                  avatar={<ActivityIcon sx={{ color: 'success.main' }} />}
+                  title="Agent Activity"
+                  titleTypographyProps={{ variant: 'subtitle1', fontWeight: 600 }}
+                  sx={{ pb: 1 }}
                 />
-              }
-              label="Show Grid"
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setSettingsOpen(false)}>Close</Button>
-          </DialogActions>
-        </Dialog>
+                <CardContent sx={{ pt: 0, pb: 2, maxHeight: 100, overflow: 'auto' }}>
+                  {agentActivity.length > 0 ? (
+                    <List dense sx={{ py: 0 }}>
+                      {agentActivity.slice(-3).map((activity, idx) => (
+                        <ListItem key={idx} sx={{ py: 0.25, px: 0 }}>
+                          <ListItemText
+                            primary={activity}
+                            primaryTypographyProps={{ variant: 'body2', fontSize: '0.85rem' }}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                      No recent agent activity
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Paper>
+
+        {/* Error Display */}
+        {error && (
+          <Alert
+            severity="error"
+            onClose={() => setError(null)}
+            sx={{ m: 2, mt: 0 }}
+          >
+            {error}
+          </Alert>
+        )}
       </Box>
     </ThemeProvider>
   );
