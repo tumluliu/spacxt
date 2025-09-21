@@ -12,6 +12,9 @@ import {
 } from '@mui/icons-material';
 import { SpatialObject, SpatialRelationship } from '../types/spatial';
 
+// Import curved edge support with arrows
+import { EdgeCurvedArrowProgram } from '@sigma/edge-curve';
+
 interface GraphView2DProps {
   objects?: SpatialObject[];
   relationships?: SpatialRelationship[];
@@ -247,29 +250,83 @@ export default function GraphView2D({
     // Add nodes with enhanced styling
     nodesToAdd.forEach(node => {
       const isSelected = node.id === selectedObject;
-      graph.addNode(node.id, {
-        label: node.name || node.id,
-        size: node.size || 12,
-        color: isSelected ? '#F59E0B' : node.color, // Highlight selected
-        borderColor: isSelected ? '#D97706' : '#FFFFFF',
-        borderSize: isSelected ? 3 : 1,
-        x: Math.random() * 200 - 100,
-        y: Math.random() * 200 - 100,
-        type: 'circle'
-      });
+      try {
+        graph.addNode(node.id, {
+          label: node.name || node.id,
+          size: node.size || 12,
+          color: isSelected ? '#F59E0B' : node.color, // Highlight selected
+          borderColor: isSelected ? '#D97706' : '#FFFFFF',
+          borderSize: isSelected ? 3 : 1,
+          x: Math.random() * 200 - 100,
+          y: Math.random() * 200 - 100,
+          objectType: node.type || 'default' // Store as custom attribute, not 'type'
+          // Explicitly do NOT set 'type' to avoid Sigma renderer conflicts
+        });
+      } catch (error) {
+        console.warn(`Failed to add node ${node.id}:`, error);
+      }
     });
 
-    // Add edges with enhanced styling
+    // Check for ANY edges between the same pair of nodes (regardless of relationship type)
+    // to determine if we need curves to avoid visual overlap
+    const nodeConnectionCounts = new Map();
+
+    // Count connections between each pair of nodes
+    linksToAdd.forEach(link => {
+      const pairKey = [link.source, link.target].sort().join('<->');
+      nodeConnectionCounts.set(pairKey, (nodeConnectionCounts.get(pairKey) || 0) + 1);
+    });
+
+    console.log('Node connection counts:', Array.from(nodeConnectionCounts.entries()));
+    console.log('All links to add:', linksToAdd.map(l => `${l.source} -> ${l.target} (${l.type})`));
+
+    // Add edges with curves for any multiple connections between same nodes
     linksToAdd.forEach((link, index) => {
       try {
         const edgeId = `edge-${index}`;
-        graph.addEdge(link.source, link.target, {
+        const pairKey = [link.source, link.target].sort().join('<->');
+        const hasMultipleConnections = (nodeConnectionCounts.get(pairKey) || 0) > 1;
+
+        // Use curved arrows for any multiple connections to avoid overlap
+        let edgeSize = link.width || 2;
+        let edgeColor = link.color;
+        let edgeType = 'arrow'; // Always use arrow type for direction indication
+        let curvature = 0;
+
+        if (hasMultipleConnections) {
+          // Create deterministic curve direction based on relationship type and direction
+          // This ensures consistent curves and separation
+          const isForwardDirection = link.source.localeCompare(link.target) < 0;
+          const relationshipHash = link.type.split('').reduce((hash, char) => {
+            return hash + char.charCodeAt(0);
+          }, 0);
+
+          // Use relationship type and direction to determine curvature
+          if (isForwardDirection) {
+            curvature = (relationshipHash % 2 === 0) ? 0.4 : -0.4;
+          } else {
+            curvature = (relationshipHash % 2 === 0) ? -0.4 : 0.4;
+          }
+
+          edgeSize = Math.max(edgeSize, 3); // Thicker for visibility
+
+          console.log(`Creating curved edge: ${link.source} -> ${link.target} (${link.type}), curvature: ${curvature}`);
+        }
+
+        const edgeAttributes: any = {
           id: edgeId,
           label: (link as any).displayLabel || link.type,
-          color: link.color,
-          size: link.width || 2,
-          type: 'arrow'
-        });
+          color: edgeColor,
+          size: edgeSize,
+          type: edgeType
+        };
+
+        // Add curvature for multiple connections (curved arrows)
+        if (hasMultipleConnections && curvature !== 0) {
+          edgeAttributes.curvature = curvature;
+        }
+
+        graph.addEdge(link.source, link.target, edgeAttributes);
       } catch (error) {
         console.warn(`Failed to add edge ${link.source} -> ${link.target}:`, error);
       }
@@ -314,7 +371,7 @@ export default function GraphView2D({
         // Rendering settings
         renderLabels: true,
         renderEdgeLabels: true,
-        allowInvalidContainer: false,
+        allowInvalidContainer: true, // Allow invalid containers to prevent width errors
 
         // Visual settings
         defaultNodeColor: '#6B7280',
@@ -334,14 +391,47 @@ export default function GraphView2D({
         // Node settings
         nodeProgramClasses: {},
 
-        // Edge settings
-        edgeProgramClasses: {},
+        // Edge settings - enable curved edges with arrows
+        edgeProgramClasses: {
+          arrow: EdgeCurvedArrowProgram, // Use EdgeCurvedArrowProgram for curved arrows with arrowheads
+        },
+        defaultEdgeType: 'arrow', // Use arrow type by default
 
         // Interaction settings
-        enableEdgeEvents: true
+        enableEdgeEvents: true,
+
+        // Disable all keyboard interactions completely
+        stagePadding: 0
       });
 
-      console.log('Enhanced Sigma instance created');
+      // Completely disable keyboard interactions by blocking at the document level for this container
+      const sigmaContainer = sigma.getContainer();
+
+      if (sigmaContainer) {
+        // Remove any focus capability
+        sigmaContainer.removeAttribute('tabindex');
+        sigmaContainer.style.outline = 'none';
+
+        // Create a comprehensive keyboard blocker
+        const keyboardBlocker = (e: KeyboardEvent) => {
+          // Check if the event target is within the Sigma container
+          if (sigmaContainer.contains(e.target as Node) || e.target === sigmaContainer) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            return false;
+          }
+        };
+
+        // Add listeners at the document level to catch all keyboard events
+        document.addEventListener('keydown', keyboardBlocker, true);
+        document.addEventListener('keyup', keyboardBlocker, true);
+        document.addEventListener('keypress', keyboardBlocker, true);
+
+        // Store the blocker function for cleanup
+        (sigmaContainer as any)._keyboardBlocker = keyboardBlocker;
+      }
+
+      console.log('Enhanced Sigma instance created with keyboard disabled');
     } catch (error) {
       console.error('Failed to create Sigma instance:', error);
       return;
@@ -367,26 +457,83 @@ export default function GraphView2D({
       sigma.refresh();
     });
 
+    // Additional container-level keyboard blocking
+    container.setAttribute('tabindex', '-1');
+    container.style.outline = 'none';
+
     // Store reference
     sigmaRef.current = sigma;
 
     // Initial camera positioning
     setTimeout(() => {
       if (sigma && graph.order > 0) {
-        sigma.getCamera().animatedReset({ duration: 300 });
-        sigma.refresh();
-        console.log('Sigma positioned and refreshed');
+        try {
+          sigma.getCamera().animatedReset({ duration: 300 });
+          sigma.refresh();
+          console.log('Sigma positioned and refreshed');
+        } catch (error) {
+          console.error('Error during Sigma refresh:', error);
+          // Try to identify problematic nodes
+          graph.forEachNode((nodeId, attributes) => {
+            if (attributes.type && attributes.type !== 'default') {
+              console.warn(`Node ${nodeId} has problematic type:`, attributes.type);
+              // Remove the problematic type attribute
+              graph.removeNodeAttribute(nodeId, 'type');
+            }
+          });
+          // Try refresh again
+          try {
+            sigma.refresh();
+            console.log('Sigma refreshed after cleanup');
+          } catch (secondError) {
+            console.error('Still failing after cleanup:', secondError);
+          }
+        }
       }
     }, 100);
 
     // Cleanup function
     return () => {
       if (sigmaRef.current) {
+        // Clean up document-level keyboard blockers
+        const sigmaContainer = sigmaRef.current.getContainer();
+        if (sigmaContainer && (sigmaContainer as any)._keyboardBlocker) {
+          const blocker = (sigmaContainer as any)._keyboardBlocker;
+          document.removeEventListener('keydown', blocker, true);
+          document.removeEventListener('keyup', blocker, true);
+          document.removeEventListener('keypress', blocker, true);
+          delete (sigmaContainer as any)._keyboardBlocker;
+        }
+
         sigmaRef.current.kill();
         sigmaRef.current = null;
       }
     };
-  }, [graphData, dimensions, selectedObject, onObjectClick]);
+  }, [graphData.nodes.length, graphData.links.length, dimensions.width, dimensions.height]);
+
+  // Handle selected object changes without recreating Sigma
+  useEffect(() => {
+    if (!sigmaRef.current) return;
+
+    const graph = sigmaRef.current.getGraph();
+
+    // Reset all nodes to unselected state
+    graph.forEachNode((nodeId) => {
+      const nodeType = graph.getNodeAttribute(nodeId, 'objectType') || 'default';
+      graph.setNodeAttribute(nodeId, 'color', OBJECT_COLORS[nodeType] || OBJECT_COLORS.default);
+      graph.setNodeAttribute(nodeId, 'borderColor', '#FFFFFF');
+      graph.setNodeAttribute(nodeId, 'borderSize', 1);
+    });
+
+    // Highlight selected node
+    if (selectedObject && graph.hasNode(selectedObject)) {
+      graph.setNodeAttribute(selectedObject, 'color', '#F59E0B');
+      graph.setNodeAttribute(selectedObject, 'borderColor', '#D97706');
+      graph.setNodeAttribute(selectedObject, 'borderSize', 3);
+    }
+
+    sigmaRef.current.refresh();
+  }, [selectedObject]);
 
   // Control handlers
   const handleZoomIn = useCallback(() => {

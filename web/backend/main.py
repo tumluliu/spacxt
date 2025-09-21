@@ -78,6 +78,8 @@ class SpatialContextManager:
     def __init__(self):
         self.sessions = {}
         self.websocket_connections = []
+        self.simulation_tasks = {}  # Background simulation tasks per session
+        self.activity_logs = {}  # Activity logs per session
 
     def get_session(self, session_id: str = "default"):
         if session_id not in self.sessions:
@@ -104,8 +106,15 @@ class SpatialContextManager:
                 'scene_modifier': scene_modifier,
                 'command_parser': command_parser,
                 'qa_system': qa_system,
-                'last_updated': datetime.now()
+                'last_updated': datetime.now(),
+                'simulation_running': False
             }
+
+            # Initialize activity log for this session
+            self.activity_logs[session_id] = []
+
+            # Start continuous agent simulation
+            self._start_agent_simulation(session_id)
 
         return self.sessions[session_id]
 
@@ -162,13 +171,140 @@ class SpatialContextManager:
         }
         scene_graph.apply_patch(patch)
 
+    def _start_agent_simulation(self, session_id: str):
+        """Start continuous agent simulation for a session"""
+        if session_id in self.simulation_tasks:
+            return  # Already running
+
+        async def simulation_loop():
+            session = self.get_session(session_id)
+            session['simulation_running'] = True
+
+            self._log_activity(session_id, "🤖 Agent simulation started", "system")
+
+            while session['simulation_running']:
+                try:
+                    # Run one agent negotiation tick
+                    old_relations_count = len(session['scene_graph'].relations)
+
+                    # Capture messages before tick
+                    pre_tick_messages = []
+                    for agent_id, agent in session['agents'].items():
+                        if agent.inbox:
+                            pre_tick_messages.extend([
+                                f"📨 {agent_id} received {len(agent.inbox)} messages"
+                            ])
+
+                    # Run the tick
+                    tick(session['scene_graph'], session['bus'], session['agents'])
+
+                    # Check for relationship changes
+                    new_relations_count = len(session['scene_graph'].relations)
+                    if new_relations_count != old_relations_count:
+                        change = new_relations_count - old_relations_count
+                        if change > 0:
+                            self._log_activity(session_id, f"🔗 +{change} spatial relationships discovered", "agent")
+                        else:
+                            self._log_activity(session_id, f"🔗 {abs(change)} spatial relationships removed", "agent")
+
+                        # Broadcast scene update ONLY when relationships change
+                        await self.broadcast_scene_update(session_id)
+                    # If no relationship changes, don't broadcast to avoid unnecessary graph updates
+
+                    # Log agent activities if any
+                    for msg in pre_tick_messages:
+                        self._log_activity(session_id, msg, "agent")
+
+                    # Wait before next tick - longer interval to reduce updates
+                    await asyncio.sleep(10.0)  # 10 second intervals (less aggressive)
+
+                except Exception as e:
+                    logger.error(f"Simulation error for session {session_id}: {e}")
+                    self._log_activity(session_id, f"⚠️ Simulation error: {str(e)}", "error")
+                    await asyncio.sleep(5.0)  # Longer wait on error
+
+            self._log_activity(session_id, "🛑 Agent simulation stopped", "system")
+
+        # Start the simulation task
+        task = asyncio.create_task(simulation_loop())
+        self.simulation_tasks[session_id] = task
+
+    def _stop_agent_simulation(self, session_id: str):
+        """Stop agent simulation for a session"""
+        if session_id in self.sessions:
+            self.sessions[session_id]['simulation_running'] = False
+
+        if session_id in self.simulation_tasks:
+            task = self.simulation_tasks[session_id]
+            task.cancel()
+            del self.simulation_tasks[session_id]
+
+    def _log_activity(self, session_id: str, message: str, activity_type: str = "info"):
+        """Log activity for a session"""
+        if session_id not in self.activity_logs:
+            self.activity_logs[session_id] = []
+
+        activity_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "type": activity_type,
+            "message": message
+        }
+
+        # Keep only last 100 entries per session
+        self.activity_logs[session_id].append(activity_entry)
+        if len(self.activity_logs[session_id]) > 100:
+            self.activity_logs[session_id] = self.activity_logs[session_id][-100:]
+
+        # Broadcast activity update
+        asyncio.create_task(self._broadcast_activity_update(session_id, activity_entry))
+
+    async def _broadcast_activity_update(self, session_id: str, activity_entry: dict):
+        """Broadcast activity update to WebSocket clients"""
+        if not self.websocket_connections:
+            return
+
+        disconnected = []
+        for websocket in self.websocket_connections:
+            try:
+                await websocket.send_json({
+                    "type": "activity_update",
+                    "session_id": session_id,
+                    "activity": activity_entry
+                })
+            except:
+                disconnected.append(websocket)
+
+        # Remove disconnected clients
+        for ws in disconnected:
+            self.websocket_connections.remove(ws)
+
+    async def _trigger_immediate_relationship_update(self, session_id: str):
+        """Trigger immediate agent negotiation to discover new relationships"""
+        try:
+            session = self.get_session(session_id)
+
+            # Run 3 quick ticks to allow agents to discover new relationships
+            for i in range(3):
+                old_count = len(session['scene_graph'].relations)
+                tick(session['scene_graph'], session['bus'], session['agents'])
+                new_count = len(session['scene_graph'].relations)
+
+                if new_count > old_count:
+                    self._log_activity(session_id, f"🔍 Agents discovered {new_count - old_count} new relationships", "agent")
+
+                await asyncio.sleep(0.1)  # Short delay between ticks
+
+        except Exception as e:
+            logger.error(f"Error in immediate relationship update: {e}")
+            self._log_activity(session_id, f"⚠️ Error updating relationships: {str(e)}", "error")
+
     async def broadcast_scene_update(self, session_id: str):
         """Broadcast scene updates to all connected WebSocket clients"""
         if not self.websocket_connections:
             return
 
         session = self.get_session(session_id)
-        scene_data = self._serialize_scene(session)
+        scene_data = self._serialize_scene(session, session_id)
 
         # Send to all connected clients
         disconnected = []
@@ -185,7 +321,7 @@ class SpatialContextManager:
         for ws in disconnected:
             self.websocket_connections.remove(ws)
 
-    def _serialize_scene(self, session):
+    def _serialize_scene(self, session, session_id: str = None):
         """Convert scene to JSON-serializable format"""
         scene_graph = session['scene_graph']
         support_system = session['scene_modifier'].support_system
@@ -220,11 +356,22 @@ class SpatialContextManager:
         # Get support relationships
         support_info = support_system.support_tracker.get_support_info()
 
+        # Find session_id if not provided
+        if session_id is None:
+            # Try to find session_id by matching session object
+            for sid, sess in self.sessions.items():
+                if sess == session:
+                    session_id = sid
+                    break
+            if session_id is None:
+                session_id = 'default'
+
         return {
             'objects': objects,
             'relationships': relationships,
             'support_relationships': support_info,
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'activity_logs': self.activity_logs.get(session_id, [])[-20:]  # Last 20 activities
         }
 
 # Global manager instance
@@ -240,7 +387,7 @@ async def root():
 async def get_scene(session_id: str = "default"):
     """Get current scene state"""
     session = spatial_manager.get_session(session_id)
-    return spatial_manager._serialize_scene(session)
+    return spatial_manager._serialize_scene(session, session_id)
 
 @app.post("/api/objects/{session_id}")
 async def create_object(object_data: ObjectCreate, session_id: str = "default"):
@@ -264,10 +411,16 @@ async def create_object(object_data: ObjectCreate, session_id: str = "default"):
 
         result = scene_modifier.execute_command(command)
 
+        # Log the command execution
+        spatial_manager._log_activity(session_id, f"➕ Added {object_data.object_type} to scene", "command")
+
+        # Trigger immediate agent negotiations for new relationships
+        await spatial_manager._trigger_immediate_relationship_update(session_id)
+
         # Broadcast update
         await spatial_manager.broadcast_scene_update(session_id)
 
-        return {"success": True, "message": result, "scene": spatial_manager._serialize_scene(session)}
+        return {"success": True, "message": result, "scene": spatial_manager._serialize_scene(session, session_id)}
 
     except Exception as e:
         logger.error(f"Error creating object: {e}")
@@ -288,6 +441,13 @@ async def execute_nl_command(nl_command: NLCommand, session_id: str = "default")
 
         success, message = scene_modifier.execute_command(parsed_command)
 
+        # Log the command execution
+        spatial_manager._log_activity(session_id, f"💬 '{nl_command.command}' → {message}", "command")
+
+        # Trigger immediate relationship updates if successful
+        if success:
+            await spatial_manager._trigger_immediate_relationship_update(session_id)
+
         # Broadcast update
         await spatial_manager.broadcast_scene_update(session_id)
 
@@ -296,7 +456,7 @@ async def execute_nl_command(nl_command: NLCommand, session_id: str = "default")
             "command": nl_command.command,
             "parsed": parsed_command.__dict__,
             "message": message,
-            "scene": spatial_manager._serialize_scene(session)
+            "scene": spatial_manager._serialize_scene(session, session_id)
         }
 
     except Exception as e:
@@ -324,6 +484,20 @@ async def ask_spatial_question(question: SpatialQuestion, session_id: str = "def
         logger.error(f"Error processing question: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/activities/{session_id}")
+async def get_activities(session_id: str = "default", limit: int = 50):
+    """Get activity logs for a session"""
+    try:
+        activities = spatial_manager.activity_logs.get(session_id, [])
+        return {
+            "success": True,
+            "activities": activities[-limit:] if limit > 0 else activities,
+            "total": len(activities)
+        }
+    except Exception as e:
+        logger.error(f"Error getting activities: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.delete("/api/objects/{session_id}/{object_id}")
 async def delete_object(object_id: str, session_id: str = "default"):
     """Delete an object from the scene"""
@@ -344,7 +518,7 @@ async def delete_object(object_id: str, session_id: str = "default"):
         # Broadcast update
         await spatial_manager.broadcast_scene_update(session_id)
 
-        return {"success": True, "message": result, "scene": spatial_manager._serialize_scene(session)}
+        return {"success": True, "message": result, "scene": spatial_manager._serialize_scene(session, session_id)}
 
     except Exception as e:
         logger.error(f"Error deleting object: {e}")
@@ -377,7 +551,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str = "default"):
     try:
         # Send initial scene state
         session = spatial_manager.get_session(session_id)
-        scene_data = spatial_manager._serialize_scene(session)
+        scene_data = spatial_manager._serialize_scene(session, session_id)
         await websocket.send_json({
             "type": "scene_update",
             "data": scene_data

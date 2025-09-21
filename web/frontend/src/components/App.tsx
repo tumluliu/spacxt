@@ -160,17 +160,13 @@ const App: React.FC = () => {
     }
   ]);
   const [inputMessage, setInputMessage] = useState('');
-  const [agentActivity, setAgentActivity] = useState<string[]>([]);
+  const [agentActivity, setAgentActivity] = useState<any[]>([]);
   const [spatialRelations, setSpatialRelations] = useState<any[]>([]);
 
-  // WebSocket connection
-  const { connectionStatus } = useWebSocket('ws://localhost:8000/ws/default', {
-    onMessage: (data) => {
-      if (data.type === 'scene_update') {
-        setSceneState(data.data);
-        setSpatialRelations(data.data.relationships || []);
-      }
-    },
+  // WebSocket connection - using a simpler approach for now
+  const { connectionStatus } = useWebSocket({
+    sessionId: 'default',
+    autoConnect: true
   });
 
   // Load initial scene
@@ -180,6 +176,10 @@ const App: React.FC = () => {
         const scene = await SpatialAPI.getScene();
         setSceneState(scene);
         setSpatialRelations(scene.relationships || []);
+        // Load initial activity logs
+        if (scene.activity_logs) {
+          setAgentActivity(scene.activity_logs);
+        }
       } catch (err) {
         setError('Failed to load scene');
         console.error(err);
@@ -215,10 +215,8 @@ const App: React.FC = () => {
 
       if (isQuestion) {
         response = await SpatialAPI.askQuestion({ question: inputMessage });
-        setAgentActivity(prev => [...prev, `🤔 Processed question: "${inputMessage}"`]);
       } else {
         response = await SpatialAPI.executeCommand({ command: inputMessage });
-        setAgentActivity(prev => [...prev, `🔧 Executed command: "${inputMessage}"`]);
       }
 
       const assistantMessage: ChatMessage = {
@@ -259,7 +257,7 @@ const App: React.FC = () => {
   const runSimulation = async () => {
     try {
       await SpatialAPI.runSimulation();
-      setAgentActivity(prev => [...prev, `🤖 Agents negotiating spatial relationships...`]);
+      // Activity will be automatically logged by the backend and broadcast via WebSocket
     } catch (err) {
       console.error('Simulation failed:', err);
     }
@@ -570,8 +568,16 @@ const App: React.FC = () => {
                       {agentActivity.slice(-3).map((activity, idx) => (
                         <ListItem key={idx} sx={{ py: 0.25, px: 0 }}>
                           <ListItemText
-                            primary={activity}
-                            primaryTypographyProps={{ variant: 'body2', fontSize: '0.85rem' }}
+                            primary={activity.message || activity}
+                            secondary={activity.timestamp ? new Date(activity.timestamp).toLocaleTimeString() : ''}
+                            primaryTypographyProps={{
+                              variant: 'body2',
+                              fontSize: '0.85rem',
+                              color: activity.type === 'error' ? 'error.main' :
+                                     activity.type === 'agent' ? 'success.main' :
+                                     activity.type === 'command' ? 'primary.main' : 'text.primary'
+                            }}
+                            secondaryTypographyProps={{ variant: 'caption', fontSize: '0.7rem' }}
                           />
                         </ListItem>
                       ))}
