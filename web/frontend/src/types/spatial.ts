@@ -47,6 +47,8 @@ export interface SupportRelationship {
   support_relationships: Record<string, string>;
   dependents: Record<string, string[]>;
   recursive_dependents?: Record<string, string[]>;
+  total_supported_objects?: number;
+  total_supporting_objects?: number;
 }
 
 export interface SceneState {
@@ -54,6 +56,11 @@ export interface SceneState {
   relationships: SpatialRelationship[];
   support_relationships: SupportRelationship;
   timestamp: string;
+  activity_logs?: Array<{
+    timestamp: string;
+    type: string;
+    message: string;
+  }>;
 }
 
 export interface CommandResult {

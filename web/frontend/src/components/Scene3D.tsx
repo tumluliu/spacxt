@@ -16,7 +16,7 @@ import * as THREE from 'three';
 import { SpatialObject, SpatialRelationship } from '../types/spatial';
 
 interface Scene3DProps {
-  objects: Record<string, SpatialObject>;
+  objects: Record<string, SpatialObject> | SpatialObject[];
   relationships: SpatialRelationship[];
   selectedObject?: string;
   onObjectClick?: (objectId: string) => void;
@@ -35,12 +35,36 @@ const TYPE_COLORS: Record<string, string> = {
   default: '#808080'
 };
 
+const COLOR_OVERRIDES: Record<string, string> = {
+  varied: '#9CA3AF',
+  brass: '#B5A642',
+  bronze: '#CD7F32',
+  steel: '#B0C4DE'
+};
+
+const ensureValidColor = (value: string): string => {
+  if (typeof value === 'string') {
+    const normalized = value.toLowerCase();
+    if (COLOR_OVERRIDES[normalized]) {
+      return COLOR_OVERRIDES[normalized];
+    }
+  }
+
+  try {
+    new THREE.Color(value);
+    return value;
+  } catch (err) {
+    console.warn('Unsupported color value for spatial object, falling back to default:', value);
+    return TYPE_COLORS.default;
+  }
+};
+
 // Get color for object based on type or meta
 const getObjectColor = (obj: SpatialObject): string => {
   if (obj.meta?.color) {
-    return obj.meta.color;
+    return ensureValidColor(obj.meta.color);
   }
-  return TYPE_COLORS[obj.type] || TYPE_COLORS.default;
+  return ensureValidColor(TYPE_COLORS[obj.type] || TYPE_COLORS.default);
 };
 
 // Individual 3D object component
@@ -238,6 +262,18 @@ const Scene3D: React.FC<Scene3DProps> = ({
   showRelationships = true,
   showGrid = true
 }) => {
+  // Convert objects to consistent format
+  const objectsMap = React.useMemo(() => {
+    if (Array.isArray(objects)) {
+      const map: Record<string, SpatialObject> = {};
+      objects.forEach(obj => {
+        map[obj.id] = obj;
+      });
+      return map;
+    }
+    return objects;
+  }, [objects]);
+
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <Canvas
@@ -280,7 +316,7 @@ const Scene3D: React.FC<Scene3DProps> = ({
         </mesh>
 
         {/* 3D Objects */}
-        {Object.entries(objects).map(([id, obj]) => (
+        {Object.entries(objectsMap).map(([id, obj]) => (
           <Object3D
             key={id}
             object={obj}
@@ -291,7 +327,7 @@ const Scene3D: React.FC<Scene3DProps> = ({
 
         {/* Relationship lines */}
         {showRelationships && (
-          <RelationshipLines objects={objects} relationships={relationships} />
+          <RelationshipLines objects={objectsMap} relationships={relationships} />
         )}
 
         {/* Camera controls */}
@@ -316,7 +352,7 @@ const Scene3D: React.FC<Scene3DProps> = ({
         borderRadius: '5px',
         fontSize: '14px'
       }}>
-        <div>Objects: {Object.keys(objects).length}</div>
+        <div>Objects: {Object.keys(objectsMap).length}</div>
         <div>Relationships: {relationships.length}</div>
         {selectedObject && <div>Selected: {selectedObject}</div>}
       </div>

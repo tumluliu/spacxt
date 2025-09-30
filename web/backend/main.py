@@ -434,8 +434,16 @@ async def execute_nl_command(nl_command: NLCommand, session_id: str = "default")
         scene_modifier = session['scene_modifier']
         command_parser = session['command_parser']
 
-        # Parse and execute command
-        parsed_command = command_parser.parse(nl_command.command)
+        # Parse and execute command with scene context
+        scene_graph = session['scene_graph']
+        scene_context = {
+            'objects': {obj_id: {'id': obj_id, 'type': node.cls, 'position': node.pos}
+                       for obj_id, node in scene_graph.nodes.items()},
+            'relationships': [{'from': rel.a, 'to': rel.b, 'type': rel.r}
+                            for rel in scene_graph.relations.values()]
+        }
+
+        parsed_command = command_parser.parse(nl_command.command, scene_context)
         if not parsed_command:
             return {"success": False, "error": "Failed to parse command"}
 
@@ -570,7 +578,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str = "default"):
                     if command:
                         scene_modifier = session['scene_modifier']
                         command_parser = session['command_parser']
-                        parsed_command = command_parser.parse(command)
+                        scene_graph = session['scene_graph']
+
+                        # Build scene context
+                        scene_context = {
+                            'objects': {obj_id: {'id': obj_id, 'type': node.cls, 'position': node.pos}
+                                       for obj_id, node in scene_graph.nodes.items()},
+                            'relationships': [{'from': rel.a, 'to': rel.b, 'type': rel.r}
+                                            for rel in scene_graph.relations.values()]
+                        }
+
+                        parsed_command = command_parser.parse(command, scene_context)
                         if parsed_command:
                             success, message = scene_modifier.execute_command(parsed_command)
 

@@ -20,6 +20,7 @@ interface GraphView2DProps {
   relationships?: SpatialRelationship[];
   selectedObject?: string;
   onObjectClick?: (objectId: string) => void;
+  isActive?: boolean;
 }
 
 // Enhanced color palette with better contrast and visual hierarchy
@@ -67,11 +68,40 @@ export default function GraphView2D({
   objects = [],
   relationships = [],
   selectedObject,
-  onObjectClick
+  onObjectClick,
+  isActive = true
 }: GraphView2DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sigmaRef = useRef<Sigma | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+  const updateDimensions = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const parent = container.parentElement;
+    if (!parent) return;
+
+    const parentStyles = window.getComputedStyle(parent);
+    const parentRect = parent.getBoundingClientRect();
+
+    const paddingX = parseFloat(parentStyles.paddingLeft) + parseFloat(parentStyles.paddingRight);
+    const paddingY = parseFloat(parentStyles.paddingTop) + parseFloat(parentStyles.paddingBottom);
+
+    const newDimensions = {
+      width: Math.floor(parentRect.width - paddingX),
+      height: Math.floor(parentRect.height - paddingY)
+    };
+
+    if (newDimensions.width < 200 || newDimensions.height < 200) {
+      console.log('GraphView2D: Dimensions too small, using fallback');
+      setDimensions({ width: 600, height: 400 });
+      return;
+    }
+
+    console.log('GraphView2D: Updated dimensions:', newDimensions);
+    setDimensions(newDimensions);
+  }, []);
 
   // Process data for Sigma.js with enhanced styling
   const graphData = useMemo(() => {
@@ -149,38 +179,6 @@ export default function GraphView2D({
 
   // Simplified and more reliable container sizing
   useEffect(() => {
-    const updateDimensions = () => {
-      const container = containerRef.current;
-      if (!container) return;
-
-      // Get the actual available space from the container's parent
-      const parent = container.parentElement;
-      if (!parent) return;
-
-      // Use computed styles to get the exact available space
-      const parentStyles = window.getComputedStyle(parent);
-      const parentRect = parent.getBoundingClientRect();
-
-      // Calculate available space accounting for padding
-      const paddingX = parseFloat(parentStyles.paddingLeft) + parseFloat(parentStyles.paddingRight);
-      const paddingY = parseFloat(parentStyles.paddingTop) + parseFloat(parentStyles.paddingBottom);
-
-      const newDimensions = {
-        width: Math.floor(parentRect.width - paddingX),
-        height: Math.floor(parentRect.height - paddingY)
-      };
-
-      // Ensure minimum dimensions for usability
-      if (newDimensions.width < 200 || newDimensions.height < 200) {
-        console.log('GraphView2D: Dimensions too small, using fallback');
-        setDimensions({ width: 600, height: 400 });
-        return;
-      }
-
-      console.log('GraphView2D: Updated dimensions:', newDimensions);
-      setDimensions(newDimensions);
-    };
-
     // Initial dimension calculation with a small delay for DOM settling
     const initialTimeout = setTimeout(updateDimensions, 100);
 
@@ -201,7 +199,17 @@ export default function GraphView2D({
         resizeObserver.disconnect();
       }
     };
-  }, []);
+  }, [updateDimensions]);
+
+  useEffect(() => {
+    if (isActive) {
+      const rafId = requestAnimationFrame(() => {
+        updateDimensions();
+      });
+      return () => cancelAnimationFrame(rafId);
+    }
+    return undefined;
+  }, [isActive, updateDimensions]);
 
   // Enhanced Sigma.js initialization with better layout and styling
   useEffect(() => {
@@ -509,7 +517,7 @@ export default function GraphView2D({
         sigmaRef.current = null;
       }
     };
-  }, [graphData.nodes.length, graphData.links.length, dimensions.width, dimensions.height]);
+  }, [graphData.nodes.length, graphData.links.length, dimensions.width, dimensions.height, updateDimensions]);
 
   // Handle selected object changes without recreating Sigma
   useEffect(() => {

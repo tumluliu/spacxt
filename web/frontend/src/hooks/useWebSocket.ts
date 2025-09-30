@@ -73,6 +73,9 @@ export const useWebSocket = (options: UseWebSocketOptions = {}): UseWebSocketRet
                 setSceneState(message.data);
               }
               break;
+            case 'activity_update':
+              // handled elsewhere via HTTP polling; ignore message
+              break;
             case 'error':
               setError(message.message || 'Unknown error');
               break;
