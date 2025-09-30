@@ -321,9 +321,46 @@ class SceneModifier:
             return self._move_multiple_objects(command)
 
         # Single object move
-        object_id = self._find_object_by_name(command.object_id or command.object_type)
+        # Try different strategies to find the object
+        object_id = None
+
+        # Strategy 1: Use object_id if provided and not null
+        if command.object_id and command.object_id.lower() not in ['null', 'none', '']:
+            object_id = self._find_object_by_name(command.object_id)
+
+        # Strategy 2: If object_id not found, try by object_type
+        if not object_id and command.object_type:
+            # Find first object of this type
+            for obj_id, node in self.graph.nodes.items():
+                if (node.cls == command.object_type or
+                    command.object_type in obj_id.lower() or
+                    obj_id.lower().startswith(command.object_type.lower())):
+                    object_id = obj_id
+                    break
+
+        # Strategy 3: Try fuzzy matching with common synonyms
+        if not object_id and command.object_type:
+            synonyms = {
+                'table': ['table'],
+                'cup': ['coffee_cup', 'cup'],
+                'book': ['book'],
+                'chair': ['chair'],
+                'stove': ['stove'],
+                'lamp': ['lamp']
+            }
+
+            for synonym in synonyms.get(command.object_type, [command.object_type]):
+                for obj_id, node in self.graph.nodes.items():
+                    if synonym in obj_id.lower() or synonym == node.cls:
+                        object_id = obj_id
+                        break
+                if object_id:
+                    break
+
         if not object_id:
-            return False, f"Could not find object: {command.object_id or command.object_type}"
+            # List available objects for debugging
+            available_objects = list(self.graph.nodes.keys())
+            return False, f"Could not find object to move. Looking for: '{command.object_id or command.object_type}'. Available objects: {available_objects}"
 
         return self._move_single_object(object_id, command)
 
@@ -369,12 +406,24 @@ class SceneModifier:
         # Get all dependent objects recursively (including objects stacked on top of direct dependents)
         dependent_objects = self.support_system.support_tracker.get_all_dependent_objects_recursive(object_id)
 
+        # Find target object if specified
+        target_id = None
+        if command.target_object and command.target_object.lower() not in ['null', 'none', '']:
+            target_id = self._find_object_by_name(command.target_object)
+            if not target_id:
+                # Try to find by type
+                for obj_id, obj_node in self.graph.nodes.items():
+                    if (obj_node.cls == command.target_object or
+                        command.target_object in obj_id.lower()):
+                        target_id = obj_id
+                        break
+
         # Calculate new position for the main object
         new_position = self.placement_engine.place_object(
             object_id=object_id,
             object_size=object_size,
             placement_type=placement_type,
-            target_id=command.target_object,
+            target_id=target_id,
             randomness=0.2
         )
 
@@ -418,10 +467,46 @@ class SceneModifier:
 
     def _remove_object(self, command: ParsedCommand) -> Tuple[bool, str]:
         """Remove an object from the scene with cascade physics for dependent objects."""
-        # Find object to remove
-        object_id = self._find_object_by_name(command.object_id)
+        # Find object to remove using enhanced object finding
+        object_id = None
+
+        # Strategy 1: Use object_id if provided and not null
+        if command.object_id and command.object_id.lower() not in ['null', 'none', '']:
+            object_id = self._find_object_by_name(command.object_id)
+
+        # Strategy 2: If object_id not found, try by object_type
+        if not object_id and command.object_type:
+            # Find first object of this type
+            for obj_id, node in self.graph.nodes.items():
+                if (node.cls == command.object_type or
+                    command.object_type in obj_id.lower() or
+                    obj_id.lower().startswith(command.object_type.lower())):
+                    object_id = obj_id
+                    break
+
+        # Strategy 3: Try fuzzy matching with common synonyms
+        if not object_id and command.object_type:
+            synonyms = {
+                'table': ['table'],
+                'cup': ['coffee_cup', 'cup'],
+                'book': ['book'],
+                'chair': ['chair'],
+                'stove': ['stove'],
+                'lamp': ['lamp']
+            }
+
+            for synonym in synonyms.get(command.object_type, [command.object_type]):
+                for obj_id, node in self.graph.nodes.items():
+                    if synonym in obj_id.lower() or synonym == node.cls:
+                        object_id = obj_id
+                        break
+                if object_id:
+                    break
+
         if not object_id:
-            return False, f"Could not find object: {command.object_id}"
+            # List available objects for debugging
+            available_objects = list(self.graph.nodes.keys())
+            return False, f"Could not find object to remove. Looking for: '{command.object_id or command.object_type}'. Available objects: {available_objects}"
 
         # First, analyze current support relationships
         self.support_system.analyze_and_update_support_relationships()

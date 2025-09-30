@@ -59,7 +59,8 @@ class LLMCommandParser:
             (r'(?:put|place|set)\s+(?:a\s+|an\s+|the\s+)?(\w+)(?:\s+\w+)?\s+(?:on|onto|upon)\s+(?:the\s+)?(\w+)', 'place_on'),
             (r'(?:put|place|set)\s+(?:a\s+|an\s+|the\s+)?(\w+)(?:\s+\w+)?\s+(?:near|beside)\s+(?:the\s+)?(\w+)', 'place_near'),
             (r'(?:add|create)\s+(?:a\s+|an\s+)?(\w+)', 'add'),
-            (r'(?:move)\s+(?:the\s+)?(\w+)\s+(?:to|near)\s+(?:the\s+)?(\w+)', 'move_to'),
+            (r'(?:move)\s+(?:the\s+)?(\w+)\s+(?:closer\s+to|nearer\s+to|near)\s+(?:the\s+)?(\w+)', 'move_near'),
+            (r'(?:move)\s+(?:the\s+)?(\w+)\s+(?:to|onto)\s+(?:the\s+)?(\w+)', 'move_to'),
             (r'(?:remove|delete)\s+(?:the\s+)?(\w+)', 'remove'),
         ]
 
@@ -145,7 +146,7 @@ class LLMCommandParser:
                 elif action_type == 'add':
                     action = 'add'
                     spatial_relation = None
-                elif action_type == 'move_to':
+                elif action_type in ['move_to', 'move_near']:
                     action = 'move'
                     spatial_relation = 'near'
                     object_id = object_word  # Use as existing object reference

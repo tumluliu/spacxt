@@ -84,7 +84,17 @@ class LLMClient:
         # Build context about current scene
         objects_list = []
         for obj_id, node in scene_context.get("objects", {}).items():
-            objects_list.append(f"- {obj_id} ({node.cls}) at position {node.pos}")
+            try:
+                if isinstance(node, dict):
+                    node_type = node.get('cls') or node.get('type') or 'unknown'
+                    node_pos = node.get('pos') or node.get('position') or 'unknown position'
+                else:
+                    node_type = getattr(node, 'cls', getattr(node, 'type', 'unknown'))
+                    node_pos = getattr(node, 'pos', getattr(node, 'position', 'unknown position'))
+
+                objects_list.append(f"- {obj_id} ({node_type}) at position {node_pos}")
+            except Exception as err:
+                objects_list.append(f"- {obj_id} (unavailable: {err})")
 
         objects_context = "\\n".join(objects_list) if objects_list else "No objects in scene"
 
@@ -127,14 +137,22 @@ For ADD actions:
 - Position will be calculated based on spatial relation
 
 For MOVE actions:
-- ALWAYS use existing object_id from scene (e.g., "coffee_cup_1", "coffee_cup_2")
+- ALWAYS use existing object_id from scene (e.g., "coffee_cup_1", "table_1")
+- Look at the scene context to find the exact object_id that matches the user's reference
+- If user says "move the table", find the table object_id from the scene (e.g., "table_1")
+- If user says "move the cup", find the coffee_cup object_id from the scene
 - For "move the two cups", find all cup objects in scene and move the first 2
 - Use quantity field to indicate how many objects to move
 - Set target_object and spatial_relation for new position
 - NEVER create new objects for MOVE commands
+- NEVER use "null" for object_id in MOVE commands - always find the actual object ID
 
 For REMOVE actions:
-- Use existing object_id from scene
+- ALWAYS use existing object_id from scene (e.g., "coffee_cup_1", "book_2")
+- Look at the scene context to find the exact object_id that matches the user's reference
+- If user says "remove the cup", find the coffee_cup object_id from the scene
+- If user says "remove the cup from the table", find the coffee_cup that's on the table
+- NEVER use "null" for object_id in REMOVE commands - always find the actual object ID
 - Other fields can be null
 
 QUANTITY HANDLING:
@@ -156,6 +174,9 @@ For CUSTOM spatial relations:
 Examples:
 - "put a coffee cup on the table" -> {{"action": "add", "object_type": "coffee_cup", "object_id": "coffee_cup_1", "target_object": "table_1", "spatial_relation": "on_top_of", "quantity": 1, "confidence": 0.95}}
 - "add two books on the table" -> {{"action": "add", "object_type": "book", "object_id": "book_1", "target_object": "table_1", "spatial_relation": "on_top_of", "quantity": 2, "confidence": 0.90}}
+- "move the table closer to the stove" -> {{"action": "move", "object_type": "table", "object_id": "table_1", "target_object": "stove", "spatial_relation": "near", "quantity": 1, "confidence": 0.90}}
+- "move the coffee cup to the table" -> {{"action": "move", "object_type": "coffee_cup", "object_id": "coffee_cup_1", "target_object": "table_1", "spatial_relation": "on_top_of", "quantity": 1, "confidence": 0.95}}
+- "remove the cup from the table" -> {{"action": "remove", "object_type": "coffee_cup", "object_id": "coffee_cup_1", "target_object": "table_1", "spatial_relation": null, "quantity": 1, "confidence": 0.95}}
 - "add a chair between the table and stove" -> {{"action": "add", "object_type": "chair", "object_id": "chair_2", "spatial_relation": "custom", "position": [2.45, 1.35, 0.45], "properties": {{"spatial_description": "between table_1 and stove"}}, "quantity": 1, "confidence": 0.90}}
 - "place a lamp in the corner" -> {{"action": "add", "object_type": "lamp", "object_id": "lamp_1", "spatial_relation": "custom", "position": [0.2, 0.2, 0.25], "properties": {{"spatial_description": "in corner of room"}}, "confidence": 0.85}}
 
