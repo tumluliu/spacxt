@@ -51,6 +51,35 @@ class SceneGraph:
         self._physics_utils = None  # Will be initialized when needed
 
     def load_bootstrap(self, data: Dict[str,Any]):
+        # Load rooms as nodes first (if they exist)
+        if "rooms" in data["scene"]:
+            for room in data["scene"]["rooms"]:
+                bbox = room.get("bbox", {"min": [0, 0, 0], "max": [0, 0, 0]})
+                # Calculate center position from bbox
+                min_coords = bbox.get("min", [0, 0, 0])
+                max_coords = bbox.get("max", [0, 0, 0])
+                center_pos = (
+                    (min_coords[0] + max_coords[0]) / 2,
+                    (min_coords[1] + max_coords[1]) / 2,
+                    (min_coords[2] + max_coords[2]) / 2
+                )
+
+                # Create room node
+                room_node = Node(
+                    id=room["id"],
+                    cls="room",
+                    pos=center_pos,
+                    ori=(0, 0, 0, 1),
+                    bbox=bbox,
+                    aff=[],
+                    lom="fixed",
+                    conf=1.0,
+                    state={"is_room": True, "physics_override": True},  # Rooms don't follow physics
+                    name=room.get("name", "Room")
+                )
+                self.nodes[room_node.id] = room_node
+
+        # Load objects
         for obj in data["scene"]["objects"]:
             n = Node(
                 id=obj["id"],
@@ -67,6 +96,7 @@ class SceneGraph:
             self.nodes[n.id] = n
 
         # Apply physics to loaded objects (force ground alignment for bootstrap)
+        # But skip rooms since they have physics_override
         if self.auto_physics:
             self._apply_bootstrap_physics()
 

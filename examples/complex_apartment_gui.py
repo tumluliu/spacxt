@@ -73,10 +73,6 @@ class ComplexApartmentVisualizer(SceneVisualizer):
         self.root.title("SpacXT - Complex Apartment Visualizer")
         self.root.geometry("1400x900")
 
-    def _get_room_name(self, room_id):
-        """Get room name by ID, used for spatial relations display."""
-        return self.room_names.get(room_id, room_id)
-
     def _create_widgets(self):
         """Create enhanced UI layout for apartment scene."""
         super()._create_widgets()

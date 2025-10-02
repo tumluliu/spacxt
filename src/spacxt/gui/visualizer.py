@@ -616,20 +616,18 @@ class SceneVisualizer:
         for rel_type, relations in relations_by_type.items():
             self.relations_text.insert(tk.END, f"=== {rel_type.upper()} ===\n")
             for a, b, conf in relations:
-                # Get display names for objects
+                # Get display names for objects and rooms (both are now in graph.nodes)
                 if a in self.graph.nodes:
                     node_a = self.graph.nodes[a]
                     a_name = node_a.name if hasattr(node_a, 'name') and node_a.name and node_a.name.strip() else node_a.cls.replace('_', ' ').title()
                 else:
-                    # Try to get room name if this is a room ID
-                    a_name = self._get_room_name(a) if hasattr(self, '_get_room_name') else a
+                    a_name = a  # Fallback to ID if not found
 
                 if b in self.graph.nodes:
                     node_b = self.graph.nodes[b]
                     b_name = node_b.name if hasattr(node_b, 'name') and node_b.name and node_b.name.strip() else node_b.cls.replace('_', ' ').title()
                 else:
-                    # Try to get room name if this is a room ID
-                    b_name = self._get_room_name(b) if hasattr(self, '_get_room_name') else b
+                    b_name = b  # Fallback to ID if not found
 
                 self.relations_text.insert(tk.END, f"  {a_name} → {b_name} (conf: {conf:.2f})\n")
             self.relations_text.insert(tk.END, "\n")
