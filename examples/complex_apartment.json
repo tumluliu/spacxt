@@ -1,0 +1,689 @@
+{
+  "scene": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Complex Apartment 101",
+    "frame": "map",
+    "rooms": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655441001",
+        "name": "Living Room",
+        "bbox": {
+          "min": [0, 0, 0],
+          "max": [6, 5, 3]
+        }
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655441002",
+        "name": "Kitchen",
+        "bbox": {
+          "min": [6, 0, 0],
+          "max": [10, 3, 3]
+        }
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655441003",
+        "name": "Master Bedroom",
+        "bbox": {
+          "min": [0, 5, 0],
+          "max": [5, 9, 3]
+        }
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655441004",
+        "name": "Second Bedroom",
+        "bbox": {
+          "min": [5, 5, 0],
+          "max": [8, 8, 3]
+        }
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655441005",
+        "name": "Bathroom",
+        "bbox": {
+          "min": [8, 5, 0],
+          "max": [10, 8, 3]
+        }
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655441006",
+        "name": "Hallway",
+        "bbox": {
+          "min": [6, 3, 0],
+          "max": [10, 5, 3]
+        }
+      }
+    ],
+    "objects": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440001",
+        "name": "Living Room Sofa",
+        "cls": "sofa",
+        "pos": [3.0, 1.5, 0.4],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [2.2, 0.9, 0.8]
+        },
+        "aff": ["sit", "lie_down"],
+        "lom": "medium",
+        "conf": 0.95
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440002",
+        "name": "Coffee Table",
+        "cls": "table",
+        "pos": [3.0, 3.0, 0.4],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [1.2, 0.6, 0.4]
+        },
+        "aff": ["support"],
+        "lom": "medium",
+        "conf": 0.90
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440003",
+        "name": "TV Stand",
+        "cls": "tv_stand",
+        "pos": [1.0, 4.5, 0.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [1.5, 0.4, 1.0]
+        },
+        "aff": ["support"],
+        "lom": "low",
+        "conf": 0.92
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440004",
+        "name": "Television",
+        "cls": "tv",
+        "pos": [1.0, 4.5, 1.2],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [1.3, 0.1, 0.7]
+        },
+        "aff": ["display"],
+        "lom": "fixed",
+        "conf": 0.98,
+        "state": {
+          "power": "off",
+          "channel": 1
+        }
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440005",
+        "name": "Kitchen Counter",
+        "cls": "counter",
+        "pos": [8.0, 1.5, 0.9],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [3.0, 0.6, 0.9]
+        },
+        "aff": ["support", "work_surface"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440006",
+        "name": "Refrigerator",
+        "cls": "refrigerator",
+        "pos": [9.5, 0.5, 0.9],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.6, 0.6, 1.8]
+        },
+        "aff": ["storage", "cooling"],
+        "lom": "fixed",
+        "conf": 0.99,
+        "state": {
+          "temperature": 4,
+          "power": "on"
+        }
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440007",
+        "name": "Kitchen Stove",
+        "cls": "stove",
+        "pos": [7.0, 2.5, 0.9],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.6, 0.6, 0.9]
+        },
+        "aff": ["cooking", "heat"],
+        "lom": "fixed",
+        "conf": 0.95,
+        "state": {
+          "power": "off",
+          "temperature": 20
+        }
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440008",
+        "name": "Kitchen Chair 1",
+        "cls": "chair",
+        "pos": [8.5, 0.8, 0.45],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.5, 0.5, 0.9]
+        },
+        "aff": ["sit"],
+        "lom": "medium",
+        "conf": 0.92
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440009",
+        "name": "Kitchen Chair 2",
+        "cls": "chair",
+        "pos": [7.5, 0.8, 0.45],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.5, 0.5, 0.9]
+        },
+        "aff": ["sit"],
+        "lom": "medium",
+        "conf": 0.92
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440010",
+        "name": "Master Bed",
+        "cls": "bed",
+        "pos": [2.5, 8.2, 0.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [2.0, 1.6, 1.0]
+        },
+        "aff": ["sleep", "lie_down"],
+        "lom": "low",
+        "conf": 0.96
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440011",
+        "name": "Master Nightstand Left",
+        "cls": "nightstand",
+        "pos": [1.2, 8.2, 0.6],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.4, 0.4, 0.6]
+        },
+        "aff": ["storage", "support"],
+        "lom": "medium",
+        "conf": 0.88
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440012",
+        "name": "Master Nightstand Right",
+        "cls": "nightstand",
+        "pos": [3.8, 8.2, 0.6],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.4, 0.4, 0.6]
+        },
+        "aff": ["storage", "support"],
+        "lom": "medium",
+        "conf": 0.88
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440013",
+        "name": "Master Wardrobe",
+        "cls": "wardrobe",
+        "pos": [0.5, 8.5, 1.0],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.6, 1.0, 2.0]
+        },
+        "aff": ["storage"],
+        "lom": "fixed",
+        "conf": 0.94
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440014",
+        "name": "Second Bedroom Bed",
+        "cls": "bed",
+        "pos": [6.3, 5.8, 0.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [1.4, 1.6, 1.0]
+        },
+        "aff": ["sleep", "lie_down"],
+        "lom": "low",
+        "conf": 0.96
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440015",
+        "name": "Second Bedroom Desk",
+        "cls": "desk",
+        "pos": [7.5, 7.2, 0.75],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [1.0, 0.6, 0.75]
+        },
+        "aff": ["support", "work_surface"],
+        "lom": "low",
+        "conf": 0.93
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440016",
+        "name": "Office Chair",
+        "cls": "chair",
+        "pos": [7.5, 6.7, 0.45],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.6, 0.6, 1.0]
+        },
+        "aff": ["sit"],
+        "lom": "high",
+        "conf": 0.90
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440017",
+        "name": "Bathroom Toilet",
+        "cls": "toilet",
+        "pos": [8.5, 6.5, 0.4],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.4, 0.6, 0.8]
+        },
+        "aff": ["sanitation"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440018",
+        "name": "Bathroom Sink",
+        "cls": "sink",
+        "pos": [9.5, 6.0, 0.8],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.5, 0.4, 0.2]
+        },
+        "aff": ["wash", "water"],
+        "lom": "fixed",
+        "conf": 0.97
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440019",
+        "name": "Bathroom Shower",
+        "cls": "shower",
+        "pos": [9.5, 7.5, 1.0],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [1.0, 1.0, 2.0]
+        },
+        "aff": ["wash", "water"],
+        "lom": "fixed",
+        "conf": 0.98
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440020",
+        "name": "Living Room Wall North",
+        "cls": "wall",
+        "pos": [3.0, 0.0, 1.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [6.0, 0.1, 3.0]
+        },
+        "aff": ["structure"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440021",
+        "name": "Living Room Wall East",
+        "cls": "wall",
+        "pos": [6.0, 1.5, 1.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.1, 3.0, 3.0]
+        },
+        "aff": ["structure"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440022",
+        "name": "Kitchen Wall North",
+        "cls": "wall",
+        "pos": [8.0, 0.0, 1.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [4.0, 0.1, 3.0]
+        },
+        "aff": ["structure"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440023",
+        "name": "Kitchen Wall East",
+        "cls": "wall",
+        "pos": [10.0, 1.5, 1.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.1, 3.0, 3.0]
+        },
+        "aff": ["structure"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440024",
+        "name": "Bedroom Wall West",
+        "cls": "wall",
+        "pos": [0.0, 7.0, 1.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.1, 4.0, 3.0]
+        },
+        "aff": ["structure"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440025",
+        "name": "Apartment Wall South",
+        "cls": "wall",
+        "pos": [5.0, 9.0, 1.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [10.0, 0.1, 3.0]
+        },
+        "aff": ["structure"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440030",
+        "name": "Apartment Wall West",
+        "cls": "wall",
+        "pos": [0.0, 4.5, 1.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.1, 9.0, 3.0]
+        },
+        "aff": ["structure"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440031",
+        "name": "Kitchen Bathroom Wall East",
+        "cls": "wall",
+        "pos": [10.0, 6.5, 1.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.1, 5.0, 3.0]
+        },
+        "aff": ["structure"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440032",
+        "name": "Hallway Kitchen Wall South",
+        "cls": "wall",
+        "pos": [8.0, 3.0, 1.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [4.0, 0.1, 3.0]
+        },
+        "aff": ["structure"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440033",
+        "name": "Bedroom Hallway Wall North",
+        "cls": "wall",
+        "pos": [6.5, 5.0, 1.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [5.0, 0.1, 3.0]
+        },
+        "aff": ["structure"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440034",
+        "name": "Bathroom Bedroom Wall West",
+        "cls": "wall",
+        "pos": [8.0, 6.0, 1.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.1, 4.0, 3.0]
+        },
+        "aff": ["structure"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440035",
+        "name": "Living Master Bedroom Wall South",
+        "cls": "wall",
+        "pos": [2.5, 5.0, 1.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [5.0, 0.1, 3.0]
+        },
+        "aff": ["structure"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440037",
+        "name": "Master Second Bedroom Wall East",
+        "cls": "wall",
+        "pos": [5.0, 6.5, 1.5],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [0.1, 3.0, 3.0]
+        },
+        "aff": ["structure"],
+        "lom": "fixed",
+        "conf": 0.99
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440027",
+        "name": "Master Bedroom Door",
+        "cls": "door",
+        "pos": [4.0, 5.0, 1.0],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [1.0, 0.1, 2.0]
+        },
+        "aff": ["passage"],
+        "lom": "fixed",
+        "conf": 0.95,
+        "state": {
+          "open": false
+        }
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440028",
+        "name": "Second Bedroom Door",
+        "cls": "door",
+        "pos": [6.0, 5.0, 1.0],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [1.0, 0.1, 2.0]
+        },
+        "aff": ["passage"],
+        "lom": "fixed",
+        "conf": 0.95,
+        "state": {
+          "open": false
+        }
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440029",
+        "name": "Bathroom Door",
+        "cls": "door",
+        "pos": [8.5, 5.0, 1.0],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [1.0, 0.1, 2.0]
+        },
+        "aff": ["passage"],
+        "lom": "fixed",
+        "conf": 0.95,
+        "state": {
+          "open": true
+        }
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440036",
+        "name": "Kitchen Door",
+        "cls": "door",
+        "pos": [7.0, 3.0, 1.0],
+        "ori": [0, 0, 0, 1],
+        "bbox": {
+          "type": "OBB",
+          "xyz": [1.0, 0.1, 2.0]
+        },
+        "aff": ["passage"],
+        "lom": "fixed",
+        "conf": 0.95,
+        "state": {
+          "open": true
+        }
+      }
+    ],
+    "relations": [
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440001",
+        "b": "550e8400-e29b-41d4-a716-446655441001"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440002",
+        "b": "550e8400-e29b-41d4-a716-446655441001"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440003",
+        "b": "550e8400-e29b-41d4-a716-446655441001"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440004",
+        "b": "550e8400-e29b-41d4-a716-446655441001"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440005",
+        "b": "550e8400-e29b-41d4-a716-446655441002"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440006",
+        "b": "550e8400-e29b-41d4-a716-446655441002"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440007",
+        "b": "550e8400-e29b-41d4-a716-446655441002"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440008",
+        "b": "550e8400-e29b-41d4-a716-446655441002"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440009",
+        "b": "550e8400-e29b-41d4-a716-446655441002"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440010",
+        "b": "550e8400-e29b-41d4-a716-446655441003"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440011",
+        "b": "550e8400-e29b-41d4-a716-446655441003"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440012",
+        "b": "550e8400-e29b-41d4-a716-446655441003"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440013",
+        "b": "550e8400-e29b-41d4-a716-446655441003"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440014",
+        "b": "550e8400-e29b-41d4-a716-446655441004"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440015",
+        "b": "550e8400-e29b-41d4-a716-446655441004"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440016",
+        "b": "550e8400-e29b-41d4-a716-446655441004"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440017",
+        "b": "550e8400-e29b-41d4-a716-446655441005"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440018",
+        "b": "550e8400-e29b-41d4-a716-446655441005"
+      },
+      {
+        "r": "in",
+        "a": "550e8400-e29b-41d4-a716-446655440019",
+        "b": "550e8400-e29b-41d4-a716-446655441005"
+      },
+      {
+        "r": "on_top_of",
+        "a": "550e8400-e29b-41d4-a716-446655440004",
+        "b": "550e8400-e29b-41d4-a716-446655440003"
+      }
+    ]
+  }
+}
