@@ -1236,7 +1236,7 @@ const App: React.FC = () => {
                   {selectedDetails ? (
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                       <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {selectedDetails.id}
+                        {selectedDetails.name || selectedDetails.id}
                       </Typography>
                       <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                         Type: {selectedDetails.type}

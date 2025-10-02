@@ -20,6 +20,7 @@ export interface BoundingBox {
 
 export interface SpatialObject {
   id: string;
+  name?: string;
   type: string;
   position: [number, number, number];
   orientation: [number, number, number, number];

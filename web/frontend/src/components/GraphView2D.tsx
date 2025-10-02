@@ -114,10 +114,11 @@ export default function GraphView2D({
     }
 
     const nodes = objects.map(obj => {
-      const cleanName = obj.id.replace(/_\d+$/, '');
+      // Use object name if available, otherwise clean the ID
+      const displayName = obj.name || obj.id.replace(/_\d+$/, '');
       return {
         id: obj.id,
-        name: cleanName,
+        name: displayName,
         type: obj.type,
         color: OBJECT_COLORS[obj.type] || OBJECT_COLORS.default,
         size: getNodeSize(obj.type, Array.isArray(obj.bbox) ? obj.bbox : undefined),

@@ -156,7 +156,7 @@ const Object3D: React.FC<{
         anchorX="center"
         anchorY="middle"
       >
-        {object.id}
+        {object.name || object.id}
       </Text>
 
       {/* Selection highlight */}

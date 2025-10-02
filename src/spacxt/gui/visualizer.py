@@ -433,9 +433,10 @@ class SceneVisualizer:
             box = self._create_box(adjusted_pos, size, color=color)
             self.ax_3d.add_collection3d(box)
 
-            # Add labels above objects
+            # Add labels above objects (show name instead of ID)
+            display_name = node.name if node.name else node.id
             self.ax_3d.text(adjusted_pos[0], adjusted_pos[1], adjusted_pos[2] + size[2]/2 + 0.1,
-                           f"{node.id}\n({node.cls})",
+                           f"{display_name}\n({node.cls})",
                            fontsize=8, ha='center')
 
         # Note: Spatial relationships are now shown only in the graph view for clarity
@@ -515,8 +516,9 @@ class SceneVisualizer:
             circle = plt.Circle((x, y), 0.1, color=color, alpha=0.7, zorder=2)
             self.ax_graph.add_patch(circle)
 
-            # Add node label
-            self.ax_graph.text(x, y-0.15, f"{node}\n({node_data.cls})",
+            # Add node label (show name instead of ID)
+            display_name = node_data.name if node_data.name else node
+            self.ax_graph.text(x, y-0.15, f"{display_name}\n({node_data.cls})",
                               ha='center', va='top', fontsize=8, zorder=3)
 
         # Draw directed edges with arrows and curved paths
@@ -607,7 +609,10 @@ class SceneVisualizer:
         for rel_type, relations in relations_by_type.items():
             self.relations_text.insert(tk.END, f"=== {rel_type.upper()} ===\n")
             for a, b, conf in relations:
-                self.relations_text.insert(tk.END, f"  {a} → {b} (conf: {conf:.2f})\n")
+                # Get display names for objects
+                a_name = self.graph.nodes[a].name if a in self.graph.nodes and self.graph.nodes[a].name else a
+                b_name = self.graph.nodes[b].name if b in self.graph.nodes and self.graph.nodes[b].name else b
+                self.relations_text.insert(tk.END, f"  {a_name} → {b_name} (conf: {conf:.2f})\n")
             self.relations_text.insert(tk.END, "\n")
 
     def _log_activity(self, message: str):
@@ -814,7 +819,8 @@ class SceneVisualizer:
             # Log object positions for debugging
             for obj_id, node in self.graph.nodes.items():
                 if obj_id not in {"table_1", "chair_12", "stove"}:  # Only log added objects
-                    self._log_activity(f"📍 {obj_id}: position {node.pos}, size {node.bbox['xyz']}")
+                    display_name = node.name if node.name else obj_id
+                    self._log_activity(f"📍 {display_name}: position {node.pos}, size {node.bbox['xyz']}")
 
             # Log success
             if added_objects:

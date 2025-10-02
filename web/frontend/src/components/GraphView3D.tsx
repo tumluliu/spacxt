@@ -113,7 +113,7 @@ const GraphView3D: React.FC<GraphView3DProps> = ({
   // Convert spatial objects to graph nodes
   const nodes: GraphNode[] = Object.values(objects).map(obj => ({
     id: obj.id,
-    name: obj.id.replace(/_\d+$/, '').replace(/_/g, ' '),
+    name: obj.name || obj.id.replace(/_\d+$/, '').replace(/_/g, ' '),
     type: obj.type,
     position: obj.position,
     color: obj.id === selectedObject ? '#FFD700' : (TYPE_COLORS[obj.type] || TYPE_COLORS.default),
