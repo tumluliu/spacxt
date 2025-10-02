@@ -434,7 +434,11 @@ class SceneVisualizer:
             self.ax_3d.add_collection3d(box)
 
             # Add labels above objects (show name instead of ID)
-            display_name = node.name if node.name else node.id
+            # DEBUG: Print to verify code is running
+            if hasattr(node, 'name'):
+                display_name = node.name if node.name and node.name.strip() else node.id
+            else:
+                display_name = node.id
             self.ax_3d.text(adjusted_pos[0], adjusted_pos[1], adjusted_pos[2] + size[2]/2 + 0.1,
                            f"{display_name}\n({node.cls})",
                            fontsize=8, ha='center')
@@ -517,7 +521,10 @@ class SceneVisualizer:
             self.ax_graph.add_patch(circle)
 
             # Add node label (show name instead of ID)
-            display_name = node_data.name if node_data.name else node
+            if hasattr(node_data, 'name') and node_data.name and node_data.name.strip():
+                display_name = node_data.name
+            else:
+                display_name = node_data.cls.replace('_', ' ').title()  # Fallback to class name, not ID
             self.ax_graph.text(x, y-0.15, f"{display_name}\n({node_data.cls})",
                               ha='center', va='top', fontsize=8, zorder=3)
 
@@ -610,8 +617,20 @@ class SceneVisualizer:
             self.relations_text.insert(tk.END, f"=== {rel_type.upper()} ===\n")
             for a, b, conf in relations:
                 # Get display names for objects
-                a_name = self.graph.nodes[a].name if a in self.graph.nodes and self.graph.nodes[a].name else a
-                b_name = self.graph.nodes[b].name if b in self.graph.nodes and self.graph.nodes[b].name else b
+                if a in self.graph.nodes:
+                    node_a = self.graph.nodes[a]
+                    a_name = node_a.name if hasattr(node_a, 'name') and node_a.name and node_a.name.strip() else node_a.cls.replace('_', ' ').title()
+                else:
+                    # Try to get room name if this is a room ID
+                    a_name = self._get_room_name(a) if hasattr(self, '_get_room_name') else a
+
+                if b in self.graph.nodes:
+                    node_b = self.graph.nodes[b]
+                    b_name = node_b.name if hasattr(node_b, 'name') and node_b.name and node_b.name.strip() else node_b.cls.replace('_', ' ').title()
+                else:
+                    # Try to get room name if this is a room ID
+                    b_name = self._get_room_name(b) if hasattr(self, '_get_room_name') else b
+
                 self.relations_text.insert(tk.END, f"  {a_name} → {b_name} (conf: {conf:.2f})\n")
             self.relations_text.insert(tk.END, "\n")
 
@@ -819,7 +838,7 @@ class SceneVisualizer:
             # Log object positions for debugging
             for obj_id, node in self.graph.nodes.items():
                 if obj_id not in {"table_1", "chair_12", "stove"}:  # Only log added objects
-                    display_name = node.name if node.name else obj_id
+                    display_name = node.name if node.name and node.name.strip() else obj_id
                     self._log_activity(f"📍 {display_name}: position {node.pos}, size {node.bbox['xyz']}")
 
             # Log success

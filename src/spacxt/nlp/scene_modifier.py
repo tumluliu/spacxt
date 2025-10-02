@@ -263,8 +263,12 @@ class SceneModifier:
                 )
 
             # Create new node (position will be auto-corrected by SceneGraph physics)
+            # Generate a readable name for the object
+            object_name = f"{command.object_type.replace('_', ' ').title()} {object_counter + 1}"
+
             node = Node(
                 id=object_id,
+                name=object_name,  # Add human-readable name
                 cls=template['cls'],
                 pos=position,
                 ori=(0, 0, 0, 1),  # Default orientation

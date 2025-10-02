@@ -73,6 +73,10 @@ class ComplexApartmentVisualizer(SceneVisualizer):
         self.root.title("SpacXT - Complex Apartment Visualizer")
         self.root.geometry("1400x900")
 
+    def _get_room_name(self, room_id):
+        """Get room name by ID, used for spatial relations display."""
+        return self.room_names.get(room_id, room_id)
+
     def _create_widgets(self):
         """Create enhanced UI layout for apartment scene."""
         super()._create_widgets()
@@ -122,7 +126,7 @@ class ComplexApartmentVisualizer(SceneVisualizer):
         # Better viewing angle for apartment
         self.ax_3d.view_init(elev=20, azim=45)
 
-    def _draw_3d_scene(self):
+    def _update_3d_view(self):
         """Enhanced 3D scene drawing with room visualization."""
         self.ax_3d.clear()
 
@@ -187,7 +191,7 @@ class ComplexApartmentVisualizer(SceneVisualizer):
             self._draw_3d_box(pos, bbox_size, color, alpha=0.7)
 
             # Enhanced label with name
-            label = getattr(node, 'name', node.cls.title()) if hasattr(node, 'name') and node.name else node.cls.title()
+            label = node.name if hasattr(node, 'name') and node.name and node.name.strip() else node.cls.title()
             self.ax_3d.text(pos[0], pos[1], pos[2] + bbox_size[2]/2 + 0.1,
                            label, fontsize=6, ha='center', color='black')
 
@@ -335,7 +339,7 @@ class ComplexApartmentVisualizer(SceneVisualizer):
                 if rel_type == 'in' and b == room_id:
                     node = self.graph.nodes.get(a)
                     if node:
-                        name = getattr(node, 'name', node.cls.title()) if hasattr(node, 'name') and node.name else node.cls.title()
+                        name = node.name if hasattr(node, 'name') and node.name and node.name.strip() else node.cls.title()
                         objects_in_room.append(name)
 
             info_text += f"   Objects: {len(objects_in_room)}\n"
