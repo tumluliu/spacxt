@@ -176,7 +176,7 @@ class SceneGraph:
             # Apply physics validation (allows stacking)
             size = physics.ensure_minimum_size(node.bbox['xyz'])
             old_pos = node.pos
-            corrected_pos = physics.validate_object_position(node.pos, size, allow_stacking=True)
+            corrected_pos = physics.validate_object_position(node.pos, size, allow_stacking=True, node_state=node.state)
 
             # Update node position if corrected
             if corrected_pos != node.pos:
@@ -198,7 +198,7 @@ class SceneGraph:
 
         node = self.nodes[node_id]
         size = physics.ensure_minimum_size(node.bbox['xyz'])
-        corrected_pos = physics.validate_object_position(node.pos, size, allow_stacking=True)
+        corrected_pos = physics.validate_object_position(node.pos, size, allow_stacking=True, node_state=node.state)
 
         # Update node position if corrected
         if corrected_pos != node.pos:
@@ -215,6 +215,11 @@ class SceneGraph:
             return
 
         for node_id, node in self.nodes.items():
+            # Check for physics override (e.g., for attached lighting fixtures)
+            if node.state and node.state.get("physics_override", False):
+                # Don't modify position for objects with physics override
+                continue
+
             # Force ground alignment for bootstrap objects (no stacking assumed)
             size = physics.ensure_minimum_size(node.bbox['xyz'])
             old_pos = node.pos

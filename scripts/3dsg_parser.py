@@ -53,6 +53,57 @@ def convert_ned_orientation_to_standard(ori):
     return [y, -z, x]
 
 
+def is_lighting_object(obj_name, obj_cls):
+    """Check if an object is a lighting fixture that should be attached."""
+    lighting_keywords = ['light', 'lamp', 'spotlight', 'ceiling', 'fixture', 'chandelier', 'pendant']
+    name_lower = obj_name.lower()
+    cls_lower = obj_cls.lower()
+
+    return any(keyword in name_lower or keyword in cls_lower for keyword in lighting_keywords)
+
+
+def find_nearest_wall_or_ceiling(light_pos, rooms, room_id_map):
+    """Find the nearest wall or ceiling for a lighting object to attach to."""
+    if not rooms:
+        # No rooms defined - create a virtual ceiling attachment
+        return create_virtual_ceiling_attachment(light_pos), 'ceiling'
+
+    # Find which room contains this light (simplified - just find closest room center)
+    closest_room = None
+    min_distance = float('inf')
+
+    for room in rooms:
+        room_center = [
+            (room['bbox']['min'][0] + room['bbox']['max'][0]) / 2,
+            (room['bbox']['min'][1] + room['bbox']['max'][1]) / 2,
+            (room['bbox']['min'][2] + room['bbox']['max'][2]) / 2
+        ]
+        distance = math.sqrt(sum((a - b) ** 2 for a, b in zip(light_pos, room_center)))
+        if distance < min_distance:
+            min_distance = distance
+            closest_room = room
+
+    if closest_room:
+        return closest_room, 'ceiling'
+    else:
+        # Fallback: create virtual ceiling attachment
+        return create_virtual_ceiling_attachment(light_pos), 'ceiling'
+
+
+def create_virtual_ceiling_attachment(light_pos):
+    """Create a virtual ceiling attachment when no room objects exist."""
+    # Create a virtual room/ceiling object for attachment
+    # This ensures lighting objects can still be marked as attached
+    return {
+        "id": f"virtual_ceiling_{generate_uuid()}",
+        "name": "Virtual Ceiling",
+        "bbox": {
+            "min": [light_pos[0] - 2, light_pos[1] - 2, light_pos[2] - 0.1],
+            "max": [light_pos[0] + 2, light_pos[1] + 2, light_pos[2] + 0.1]
+        }
+    }
+
+
 def parse_bbox_to_minmax(bbox):
     """System A room bbox format: [xmin, ymin, zmin, xmax, ymax, zmax]."""
     if not bbox or len(bbox) < 6:
@@ -152,17 +203,49 @@ def convert_scene(system_a_dir, scene_name="Converted Scene", frame="map"):
             else:
                 ori = [0, 0, 0, 1]
 
-            objects.append({
+            # Check if this is a lighting object that should be attached
+            obj_name = obj_data.get("name", "object")
+            obj_cls = obj_data.get("name", "object").lower().replace(" ", "_")
+            is_lighting = is_lighting_object(obj_name, obj_cls)
+
+            # Create object with special properties for lighting objects
+            obj = {
                 "id": oid,
-                "name": obj_data.get("name", "object"),
-                "cls": obj_data.get("name", "object").lower().replace(" ", "_"),
+                "name": obj_name,
+                "cls": obj_cls,
                 "pos": pos,
                 "ori": ori,
                 "bbox": parse_object_bbox(bbox),
                 "aff": [],
                 "lom": "medium",
                 "conf": 1.0,
-            })
+            }
+
+            # Add special properties for lighting objects
+            if is_lighting:
+                # Add physics override to prevent falling
+                obj["state"] = {
+                    "physics_override": True,
+                    "attachment_type": "ceiling",
+                    "prevent_gravity": True
+                }
+
+                # Find attachment target (room ceiling or virtual ceiling)
+                target_room, attachment_type = find_nearest_wall_or_ceiling(pos, rooms, room_id_map)
+                if target_room:
+                    # If it's a virtual ceiling, add it to the rooms list
+                    if target_room["id"].startswith("virtual_ceiling_"):
+                        rooms.append(target_room)
+
+                    # Add attachment relation
+                    relations.append({
+                        "r": "attached_to",
+                        "a": oid,
+                        "b": target_room["id"],
+                        "props": {"attachment_type": attachment_type}
+                    })
+
+            objects.append(obj)
 
             # Add relation: object in room
             rid = obj_data.get("room_id")

@@ -132,9 +132,14 @@ class PhysicsUtils:
 
     @staticmethod
     def validate_object_position(position: Tuple[float, float, float], size: Tuple[float, float, float],
-                                allow_stacking: bool = True) -> Tuple[float, float, float]:
+                                allow_stacking: bool = True, node_state: Dict[str, Any] = None) -> Tuple[float, float, float]:
         """Validate and correct object position to ensure it's properly supported."""
         size = PhysicsUtils.ensure_minimum_size(size)
+
+        # Check for physics override (e.g., for attached lighting fixtures)
+        if node_state and node_state.get("physics_override", False):
+            # Don't modify position for objects with physics override
+            return position
 
         # Calculate minimum valid Z (sitting on ground)
         ground_z = PhysicsUtils.GROUND_LEVEL + size[2]/2
