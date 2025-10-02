@@ -16,6 +16,7 @@ class Node:
     conf: float = 1.0
     state: Dict[str, Any] = field(default_factory=dict)
     meta: Dict[str, Any] = field(default_factory=dict)
+    name: str = ""  # Human-readable name (may not be unique)
 
 @dataclass
 class Relation:
@@ -60,7 +61,8 @@ class SceneGraph:
                 aff=obj.get("aff",[]),
                 lom=obj.get("lom","medium"),
                 conf=obj.get("conf",1.0),
-                state=obj.get("state",{})
+                state=obj.get("state",{}),
+                name=obj.get("name", "")
             )
             self.nodes[n.id] = n
 

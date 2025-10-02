@@ -234,7 +234,7 @@ class SceneVisualizer:
         """Initialize the 3D matplotlib plot and graph view."""
         # 3D Scene Plot
         self.fig_3d = plt.Figure(figsize=(8, 4))
-        self.fig_3d.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+        self.fig_3d.subplots_adjust(left=0, right=1, top=1, bottom=0)
         self.ax_3d = self.fig_3d.add_subplot(111, projection='3d')
 
         # Configure 3D plot
@@ -244,9 +244,9 @@ class SceneVisualizer:
         self.ax_3d.set_title('3D Scene (Mouse: Rotate/Pan/Zoom)')
 
         # Set equal aspect ratio and limits
-        self.ax_3d.set_xlim(0, 5)
-        self.ax_3d.set_ylim(0, 3)
-        self.ax_3d.set_zlim(0, 2)
+        self.ax_3d.set_xlim(0, 10)
+        self.ax_3d.set_ylim(0, 10)
+        self.ax_3d.set_zlim(0, 5)
 
         # Embed 3D plot in tkinter
         self.canvas_3d = FigureCanvasTkAgg(self.fig_3d, self.scene_3d_frame)
@@ -279,7 +279,7 @@ class SceneVisualizer:
 
         # Graph View Plot
         self.fig_graph = plt.Figure(figsize=(8, 4))
-        self.fig_graph.subplots_adjust(left=0.15, right=0.85, top=0.8, bottom=0.15)
+        self.fig_graph.subplots_adjust(left=0, right=1, top=1, bottom=0)
         self.ax_graph = self.fig_graph.add_subplot(111)
 
         # Configure graph plot
@@ -378,8 +378,8 @@ class SceneVisualizer:
     def _draw_ground_plane(self):
         """Draw a ground plane for spatial reference."""
         # Create ground plane mesh
-        x = np.linspace(0, 5, 11)
-        y = np.linspace(0, 3, 7)
+        x = np.linspace(0, 10, 21)
+        y = np.linspace(0, 10, 21)
         X, Y = np.meshgrid(x, y)
         Z = np.zeros_like(X)
 
@@ -387,10 +387,10 @@ class SceneVisualizer:
         self.ax_3d.plot_wireframe(X, Y, Z, color='lightgray', alpha=0.3, linewidth=0.5)
 
         # Add grid lines for better spatial reference
-        for i in range(0, 6):
-            self.ax_3d.plot([i, i], [0, 3], [0, 0], 'lightgray', alpha=0.5, linewidth=0.5)
-        for j in range(0, 4):
-            self.ax_3d.plot([0, 5], [j, j], [0, 0], 'lightgray', alpha=0.5, linewidth=0.5)
+        for i in range(0, 11):
+            self.ax_3d.plot([i, i], [0, 10], [0, 0], 'lightgray', alpha=0.5, linewidth=0.5)
+        for j in range(0, 11):
+            self.ax_3d.plot([0, 10], [j, j], [0, 0], 'lightgray', alpha=0.5, linewidth=0.5)
 
     def _update_3d_view(self):
         """Update the 3D visualization."""
@@ -401,9 +401,9 @@ class SceneVisualizer:
         self.ax_3d.set_ylabel('Y (meters)')
         self.ax_3d.set_zlabel('Z (meters)')
         self.ax_3d.set_title('3D Scene (Mouse: Rotate/Pan/Zoom)')
-        self.ax_3d.set_xlim(0, 5)
-        self.ax_3d.set_ylim(0, 3)
-        self.ax_3d.set_zlim(0, 2)
+        self.ax_3d.set_xlim(0, 10)
+        self.ax_3d.set_ylim(0, 10)
+        self.ax_3d.set_zlim(0, 5)
 
         # Draw ground plane
         self._draw_ground_plane()
