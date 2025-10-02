@@ -1,0 +1,176 @@
+```mermaid
+flowchart TD
+%% ========= LAYOUT DIRECTION =========
+%% top-down
+
+%% ========= INGEST / BOOTSTRAP =========
+subgraph BOOTSTRAP["Bootstrap & Static Assets"]
+  BOOT[["bootstrap.json / pre-generated 3DSG"]]
+end
+
+%% ========= CORE DATA / STORAGE =========
+subgraph STORAGE["Scene Graph & Eventing"]
+  SG[(SceneGraph<br/>Nodes, Relations, Props, Conf)]
+  EV["Event Log<br/>(LWW-lite patches)"]
+end
+
+%% ========= TOPO TOOL (MCP-READY) =========
+subgraph TOPO["Topological Tools (MCP)"]
+  TT[["topo.relate_*()<br/>near/inside/on_top_of/LOS<br/>(OBB/AABB, raycasts)"]]
+end
+
+%% ========= PHYSICS & PLACEMENT =========
+subgraph PHYSICS["Physics & Placement"]
+  PHYSUTILS[["Physics Utils<br/>(geometry helpers)"]]
+  COLLIDE[["Collision Detector<br/>(broadphase/narrowphase)"]]
+  SUPPORTSYS[["Support System<br/>(load & anchor validation)"]]
+  PLACE[["Placement Engine<br/>(pose solving, snapping)"]]
+end
+
+%% ========= AGENTS LAYER =========
+subgraph AGENTS["Agentized Objects (A2A)"]
+  ASTATIC[[Agent: StaticFixture]]
+  AMOBILE[[Agent: MobileAsset]]
+  ASUPPORT[[Agent: SupportActor]]
+  LOM["Level of Mobility<br/>(locked, adjustable, free)"]
+  subgraph BUSSG["A2A Message Bus"]
+    BUS{{"A2A Bus"}}
+  end
+end
+
+%% ========= ARBITRATION =========
+subgraph ARB["Arbitration (Democratic)"]
+  ARB1[[ARBITER]]
+  WITNESSSEL["Witness Selection<br/>(near both A & B)"]
+end
+
+%% ========= ORCHESTRATOR / TICK LOOP =========
+subgraph ORCH["Orchestrator / Tick Loop"]
+  DELIVER["Deliver messages"]
+  PERCEIVE["Agents perceive + propose"]
+  HANDLE["Agents handle inbox → patches"]
+  APPLY["Apply graph patches"]
+  ARBPROC["Arbiter process votes & decide"]
+end
+
+%% ========= LLM INTEGRATION =========
+subgraph LLMCTX["LLM Context & Tools"]
+  ASM["Context Assembler<br/>(ROI summary, top-K objects,<br/>relations, notices)"]
+  CTX[/"LLM-ready JSON context"/]
+  LLM[("LLM / Agent")]
+  TOOLS["LLM Tools:<br/>spatial_context(), query_object(id),<br/>navigate(target), sense(roi)"]
+end
+
+%% ========= OPTIONAL SENSORS / IOT =========
+subgraph SENS["Sensors / IoT / Apps (optional)"]
+  S1[(Pose / Vision)]
+  S2[(IoT States)]
+  S3[(User Inputs)]
+end
+
+%% ========= FLOWS =========
+
+%% Bootstrap loads scene graph
+BOOT -->|"load_bootstrap"| SG
+
+%% Orchestrator cycle with storage
+SG <-->|"read/write"| EV
+ORCH -.tick().-> DELIVER --> PERCEIVE --> HANDLE --> APPLY --> ARBPROC
+APPLY -->|"upsert LWW patches"| SG
+
+%% Agents read scene & query topo tools
+SG -->|"neighbors(), nodes()"| ASTATIC
+SG -->|"neighbors(), nodes()"| AMOBILE
+SG -->|"neighbors(), nodes()"| ASUPPORT
+ASTATIC -->|"call"| TT
+AMOBILE -->|"call"| TT
+ASUPPORT -->|"call"| TT
+TT -->|"relation estimates (near/inside/LOS…)"| ASTATIC
+TT -->|"relation estimates"| AMOBILE
+TT -->|"relation estimates"| ASUPPORT
+
+%% Physics-aware proposals
+ASTATIC -->|"pose request"| PLACE
+AMOBILE -->|"pose request"| PLACE
+ASUPPORT -->|"constraint request"| SUPPORTSYS
+LOM -->|"mobility rules"| ASTATIC
+LOM -->|"mobility rules"| AMOBILE
+LOM -->|"mobility rules"| ASUPPORT
+LOM -->|"limits"| PLACE
+SG -->|"geometry, massing"| COLLIDE
+SG -->|"support graph"| SUPPORTSYS
+PHYSUTILS -->|"distance/fit ops"| COLLIDE
+PHYSUTILS -->|"alignment ops"| PLACE
+COLLIDE -->|"contact checks"| PLACE
+SUPPORTSYS -->|"load constraints"| PLACE
+PLACE -->|"validated pose"| ASTATIC
+PLACE -->|"validated pose"| AMOBILE
+PLACE -->|"support directives"| ASUPPORT
+PLACE -->|"physics delta"| APPLY
+
+%% A2A propose/ack over bus
+ASTATIC -->|"RELATION_PROPOSE"| BUS
+AMOBILE -->|"RELATION_PROPOSE"| BUS
+ASUPPORT -->|"RELATION_PROPOSE"| BUS
+BUS -->|"deliver to peers"| ASTATIC
+BUS -->|"deliver to peers"| AMOBILE
+BUS -->|"deliver to peers"| ASUPPORT
+
+%% Dispute triggers arbitration
+ASTATIC -->|"on reject → ARBITRATION_REQUEST"| BUS
+AMOBILE -->|"on reject → ARBITRATION_REQUEST"| BUS
+ASUPPORT -->|"on reject → ARBITRATION_REQUEST"| BUS
+BUS -->|"route"| ARB1
+
+%% Arbiter selects witnesses and collects votes
+ARB1 --> WITNESSSEL --> BUS
+BUS -->|"ARBITRATION_REQUEST (vote)"| ASTATIC
+BUS -->|"ARBITRATION_REQUEST (vote)"| AMOBILE
+BUS -->|"ARBITRATION_REQUEST (vote)"| ASUPPORT
+ASTATIC -->|"ARBITRATION_VOTE"| BUS
+AMOBILE -->|"ARBITRATION_VOTE"| BUS
+ASUPPORT -->|"ARBITRATION_VOTE"| BUS
+BUS -->|"deliver votes"| ARB1
+ARB1 -->|"ARBITRATION_DECISION (majority, conf)"| BUS
+BUS -->|"notify parties"| ASTATIC
+BUS -->|"notify parties"| AMOBILE
+BUS -->|"notify parties"| ASUPPORT
+ASTATIC -->|"emit patch (decided relation)"| APPLY
+AMOBILE -->|"emit patch (decided relation)"| APPLY
+ASUPPORT -->|"emit patch (decided relation)"| APPLY
+
+%% Sensors / IoT feed events
+S1 -->|"events/updates"| SG
+S2 -->|"state changes"| SG
+S3 -->|"commands/goals"| LLM
+
+%% LLM context assembly and tool loop
+SG -->|"query (ROI, top-K, relations)"| ASM --> CTX --> LLM
+LLM -->|"tool calls as needed"| TOOLS --> SG
+LLM -->|"actions/plans"| S3
+
+%% Legends
+classDef storage fill:#2b2b2b,stroke:#888,stroke-width:1,color:#fff;
+classDef agents fill:#1e3a5f,stroke:#89b4fa,stroke-width:1,color:#fff;
+classDef bus fill:#0f3b3b,stroke:#72e0d1,stroke-width:1,color:#fff;
+classDef topo fill:#2f2a46,stroke:#cba6f7,stroke-width:1,color:#fff;
+classDef physics fill:#243b2f,stroke:#a6e3a1,stroke-width:1,color:#fff;
+classDef mobility fill:#30404f,stroke:#89dceb,stroke-width:1,color:#fff;
+classDef arb fill:#3b2d20,stroke:#fab387,stroke-width:1,color:#fff;
+classDef orch fill:#2d3b20,stroke:#a6e3a1,stroke-width:1,color:#fff;
+classDef llm fill:#3b2240,stroke:#f38ba8,stroke-width:1,color:#fff;
+classDef boot fill:#303446,stroke:#babbf1,stroke-width:1,color:#fff;
+classDef sens fill:#24303b,stroke:#94e2d5,stroke-width:1,color:#fff;
+
+class SG,EV storage
+class ASTATIC,AMOBILE,ASUPPORT agents
+class LOM mobility
+class BUS bus
+class TT topo
+class COLLIDE,PLACE,SUPPORTSYS,PHYSUTILS physics
+class ARB1,WITNESSSEL arb
+class DELIVER,PERCEIVE,HANDLE,APPLY,ARBPROC orch
+class ASM,CTX,LLM,TOOLS llm
+class BOOT boot
+class S1,S2,S3 sens
+```
